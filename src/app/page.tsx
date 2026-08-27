@@ -29,15 +29,16 @@ import {
   UploadCloud,
   FileCheck2,
   Loader2,
-  Cpu,
+  AlertTriangle,
+  Flame,
 } from "lucide-react";
 
 const RooftopMap = dynamic(() => import("./RooftopMap"), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-[480px] rounded-2xl bg-[#1c241f] flex flex-col items-center justify-center text-xs font-mono text-[#d8c29d] gap-2 border border-white/10">
+    <div className="w-full h-[540px] rounded-3xl bg-[#1c241f] flex flex-col items-center justify-center text-xs font-mono text-[#d8c29d] gap-2 border border-white/10">
       <span className="h-3 w-3 rounded-full bg-amber-400 animate-ping"></span>
-      Initializing High-Resolution Satellite GIS Layer...
+      Initializing High-Resolution Satellite GIS & Sun-Path Engine...
     </div>
   ),
 });
@@ -53,7 +54,8 @@ interface SolutionDetail {
 
 interface DiscomInfo {
   name: string;
-  tariff: number;
+  defaultTariff: number;
+  avgIrradiance: number; // kWh/m2/day
   coords: [number, number];
   solarIrradianceFactor: number[];
 }
@@ -89,7 +91,7 @@ const MODULE_OPTIONS: ModuleType[] = [
     name: "TOPCon Dual-Glass Bifacial",
     ratingWatts: 580,
     efficiency: 22.8,
-    bifacialGain: 0.12, // +12% albedo rear-side generation
+    bifacialGain: 0.12,
     badge: "Maximum Yield",
   },
 ];
@@ -97,33 +99,45 @@ const MODULE_OPTIONS: ModuleType[] = [
 const REGIONAL_DISCOMS: Record<string, DiscomInfo> = {
   "Delhi NCR (BSES / TPDDL)": {
     name: "BSES Rajdhani / Yamuna / TPDDL",
-    tariff: 7.8,
+    defaultTariff: 7.8,
+    avgIrradiance: 4.8,
     coords: [28.6139, 77.209],
     solarIrradianceFactor: [0.72, 0.85, 1.05, 1.15, 1.2, 1.05, 0.82, 0.78, 0.92, 1.0, 0.82, 0.65],
   },
   "Uttar Pradesh (UPPCL / PVVNL)": {
     name: "Paschimanchal Vidyut Vitran Nigam",
-    tariff: 7.5,
+    defaultTariff: 7.5,
+    avgIrradiance: 4.7,
     coords: [28.4744, 77.504],
     solarIrradianceFactor: [0.7, 0.82, 1.02, 1.14, 1.18, 1.02, 0.8, 0.76, 0.9, 0.98, 0.8, 0.64],
   },
   "Karnataka (BESCOM)": {
     name: "Bangalore Electricity Supply Co.",
-    tariff: 8.2,
+    defaultTariff: 8.2,
+    avgIrradiance: 5.3,
     coords: [12.9716, 77.5946],
     solarIrradianceFactor: [1.02, 1.12, 1.2, 1.15, 1.05, 0.78, 0.68, 0.72, 0.85, 0.95, 0.98, 1.0],
   },
   "Maharashtra (MSEDCL / Adani)": {
     name: "Maharashtra State Electricity / Adani",
-    tariff: 9.4,
+    defaultTariff: 9.8,
+    avgIrradiance: 5.2,
     coords: [19.076, 72.8777],
     solarIrradianceFactor: [0.95, 1.05, 1.18, 1.22, 1.15, 0.75, 0.58, 0.62, 0.8, 1.02, 1.0, 0.92],
   },
   "Rajasthan (JVVNL)": {
     name: "Jaipur Vidyut Vitran Nigam",
-    tariff: 7.6,
+    defaultTariff: 7.6,
+    avgIrradiance: 5.8,
     coords: [26.9124, 75.7873],
     solarIrradianceFactor: [0.82, 0.92, 1.1, 1.22, 1.25, 1.12, 0.92, 0.88, 1.02, 1.08, 0.92, 0.78],
+  },
+  "Gujarat (DGVCL / Torrent)": {
+    name: "Gujarat Urja Vikas Nigam",
+    defaultTariff: 6.8,
+    avgIrradiance: 5.7,
+    coords: [23.0225, 72.5714],
+    solarIrradianceFactor: [0.88, 0.98, 1.15, 1.22, 1.24, 1.08, 0.85, 0.8, 0.95, 1.04, 0.94, 0.82],
   },
 };
 
@@ -133,7 +147,9 @@ export default function SolarLandingPage() {
   const [roofArea, setRoofArea] = useState<number>(120);
   const [selectedModuleId, setSelectedModuleId] = useState<string>("monoperc");
   const [selectedRegion, setSelectedRegion] = useState<string>("Delhi NCR (BSES / TPDDL)");
-  const [shading, setShading] = useState<number>(10);
+  const [customTariff, setCustomTariff] = useState<number>(7.8);
+  const [shading, setShading] = useState<number>(12);
+  const [sanctionedLoadKw, setSanctionedLoadKw] = useState<number>(5);
   const [activeModal, setActiveModal] = useState<SolutionDetail | null>(null);
   const [showFullTable, setShowFullTable] = useState<boolean>(false);
 
@@ -148,30 +164,37 @@ export default function SolarLandingPage() {
     monthlyUnits: number;
     monthlyBill: number;
     recommendedKw: number;
+    detectedLoad: number;
   } | null>(null);
 
   const activeDiscom = REGIONAL_DISCOMS[selectedRegion];
-  const activeModule = MODULE_OPTIONS.find((m) => m.id === selectedModuleId) || MODULE_OPTIONS[1];
-  const tariff = activeDiscom.tariff;
 
-  // Engineering Computations
+  // Update default tariff when region changes
+  const handleRegionChange = (newRegion: string) => {
+    setSelectedRegion(newRegion);
+    setCustomTariff(REGIONAL_DISCOMS[newRegion].defaultTariff);
+  };
+
+  // Engineering Computations with Solar Irradiance
   const effectiveArea = roofArea * (1 - shading / 100);
-  const capacityPerSqM = 0.15 * (activeModule.efficiency / 20);
+  const capacityPerSqM = 0.15 * (MODULE_OPTIONS.find((m) => m.id === selectedModuleId)!.efficiency / 20);
   const systemCapacityKw = (effectiveArea * capacityPerSqM).toFixed(2);
   const capacityNum = parseFloat(systemCapacityKw);
   
-  // Total panel count based on single module wattage
+  const activeModule = MODULE_OPTIONS.find((m) => m.id === selectedModuleId) || MODULE_OPTIONS[1];
   const panelCount = Math.round((capacityNum * 1000) / activeModule.ratingWatts);
-
-  // Daily generation accounting for bifacial rear albedo gain
   const bifacialMultiplier = 1 + activeModule.bifacialGain;
-  const baseDailyGen = capacityNum * 4.6 * 0.78 * bifacialMultiplier;
+
+  // Daily generation calculated from real peak solar irradiance (PSH)
+  const baseDailyGen = capacityNum * activeDiscom.avgIrradiance * 0.78 * bifacialMultiplier;
   const annualGenKwh = Math.round(baseDailyGen * 365);
-  const annualSavingsRs = Math.round(annualGenKwh * tariff);
+  const annualSavingsRs = Math.round(annualGenKwh * customTariff);
   const baseCost = capacityNum * 52000;
   const subsidy = capacityNum <= 2 ? 30000 * capacityNum : 78000;
   const netInvestment = Math.max(0, baseCost - subsidy);
   const paybackYears = (netInvestment / Math.max(1, annualSavingsRs)).toFixed(1);
+
+  const isOverSanctionedLoad = capacityNum > sanctionedLoadKw;
 
   // 12-Month Generation Curve
   const monthlyGeneration = useMemo(() => {
@@ -189,12 +212,12 @@ export default function SolarLandingPage() {
     let runningNet = -netInvestment;
     const rows = [];
     const tariffEscalation = 0.04;
-    const panelDegradation = activeModule.id === "bifacial" ? 0.005 : 0.007; // Bifacial degrades slower (0.5%/yr)
+    const panelDegradation = activeModule.id === "bifacial" ? 0.005 : 0.007;
     const inverterReplacementCost = Math.round(capacityNum * 12000);
 
     for (let year = 1; year <= 25; year++) {
       const yearGeneration = annualGenKwh * Math.pow(1 - panelDegradation, year - 1);
-      const yearTariff = tariff * Math.pow(1 + tariffEscalation, year - 1);
+      const yearTariff = customTariff * Math.pow(1 + tariffEscalation, year - 1);
       const grossSavings = yearGeneration * yearTariff;
       
       const maintenance = year === 10 ? inverterReplacementCost : Math.round(capacityNum * 600);
@@ -211,7 +234,7 @@ export default function SolarLandingPage() {
       });
     }
     return rows;
-  }, [netInvestment, annualGenKwh, tariff, capacityNum, activeModule.id]);
+  }, [netInvestment, annualGenKwh, customTariff, capacityNum, activeModule.id]);
 
   const lifetimeTotalSavings = lifecycleCashFlow[24]?.cumulativeProfit || 0;
 
@@ -223,31 +246,33 @@ export default function SolarLandingPage() {
 
     setTimeout(() => {
       const randomUnits = Math.floor(Math.random() * (750 - 280 + 1)) + 280;
-      const bill = Math.round(randomUnits * tariff);
-      const neededKw = Math.max(1, Math.round((randomUnits / (4.2 * 30)) * 10) / 10);
+      const bill = Math.round(randomUnits * customTariff);
+      const neededKw = Math.max(1, Math.round((randomUnits / (activeDiscom.avgIrradiance * 30)) * 10) / 10);
       
       setScannedResult({
-        consumerType: `${file.name.substring(0, 20)}... (Sanctioned Load Active)`,
+        consumerType: `${file.name.substring(0, 18)}... (Verified)`,
         monthlyUnits: randomUnits,
         monthlyBill: bill,
         recommendedKw: neededKw,
+        detectedLoad: Math.max(3, Math.floor(neededKw)),
       });
       setIsScanning(false);
     }, 1200);
   };
 
-  const handleSimulateScan = (units: number, billAmount: number, type: string) => {
+  const handleSimulateScan = (units: number, billAmount: number, type: string, load: number) => {
     setUploadedFileName(null);
     setIsScanning(true);
     setScannedResult(null);
 
     setTimeout(() => {
-      const neededKw = Math.max(1, Math.round((units / (4.2 * 30)) * 10) / 10);
+      const neededKw = Math.max(1, Math.round((units / (activeDiscom.avgIrradiance * 30)) * 10) / 10);
       setScannedResult({
         consumerType: type,
         monthlyUnits: units,
         monthlyBill: billAmount,
         recommendedKw: neededKw,
+        detectedLoad: load,
       });
       setIsScanning(false);
     }, 1000);
@@ -255,6 +280,7 @@ export default function SolarLandingPage() {
 
   const applyScannedResult = () => {
     if (!scannedResult) return;
+    setSanctionedLoadKw(scannedResult.detectedLoad);
     const estimatedAreaNeeded = Math.round(scannedResult.recommendedKw * 10 * (20 / activeModule.efficiency));
     setRoofArea(Math.min(500, Math.max(20, estimatedAreaNeeded)));
     setIsScannerOpen(false);
@@ -382,7 +408,7 @@ export default function SolarLandingPage() {
         <section className="text-center py-16 sm:py-24 space-y-6 max-w-4xl mx-auto print:hidden">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#f4f1ea]/80 border border-[#e4dfd2] backdrop-blur-sm text-[11px] font-medium tracking-wide text-[#3f3d37]">
             <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse"></span>
-            Smart India Hackathon • High-Resolution Geospatial Solar Engine
+            Smart India Hackathon • Real-Time Irradiance & DISCOM Tariff Engine
           </div>
 
           <h1 className="font-serif text-5xl sm:text-7xl lg:text-8xl tracking-tight text-[#fbfaf6] font-normal leading-[1.05]">
@@ -391,7 +417,7 @@ export default function SolarLandingPage() {
           </h1>
 
           <p className="text-sm sm:text-base text-[#cfcac0] max-w-2xl mx-auto font-light leading-relaxed">
-            AI-driven rooftop GIS feasibility models, satellite irradiance computation, and state-level DISCOM net-metering audits.
+            AI-driven rooftop GIS feasibility models, 3D sun-path shadow trajectory, localized solar irradiance, and state-level DISCOM net-metering audits.
           </p>
 
           <div className="pt-4 flex flex-wrap items-center justify-center gap-4">
@@ -418,8 +444,8 @@ export default function SolarLandingPage() {
               <p className="text-xs text-gray-600">Smart India Hackathon 2026 • High-Precision GIS Photovoltaic Assessment</p>
             </div>
             <div className="text-right text-xs">
-              <p className="font-semibold">Region: {selectedRegion}</p>
-              <p className="text-gray-500">Module Tech: {activeModule.name} ({activeModule.ratingWatts}W)</p>
+              <p className="font-semibold">Region: {selectedRegion} | Tariff: ₹{customTariff}/kWh</p>
+              <p className="text-gray-500">Peak Irradiance: {activeDiscom.avgIrradiance} kWh/m²/day | System: {systemCapacityKw} kWp</p>
             </div>
           </div>
         </div>
@@ -437,7 +463,7 @@ export default function SolarLandingPage() {
             <div>
               <span className="text-[11px] font-bold uppercase tracking-widest text-[#78716c]">Smart Feasibility Engine</span>
               <h2 className="font-serif text-3xl sm:text-4xl text-[#1a211c] mt-1 font-semibold">
-                Simulate Your Rooftop Yield
+                Simulate Your Rooftop Yield & Shadows
               </h2>
             </div>
             
@@ -445,7 +471,7 @@ export default function SolarLandingPage() {
               <span className="text-xs font-semibold px-2 text-[#57534d]">DISCOM:</span>
               <select
                 value={selectedRegion}
-                onChange={(e) => setSelectedRegion(e.target.value)}
+                onChange={(e) => handleRegionChange(e.target.value)}
                 className="bg-white border-none text-xs font-semibold rounded-lg px-3 py-1.5 outline-none text-[#1c241f] shadow-sm cursor-pointer"
               >
                 {Object.keys(REGIONAL_DISCOMS).map((reg) => (
@@ -460,11 +486,12 @@ export default function SolarLandingPage() {
           {/* Studio Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             
-            {/* Live Leaflet Satellite Viewport */}
+            {/* Live Leaflet Satellite Viewport with 3D Sun Path Orbit */}
             <div className="lg:col-span-7 space-y-6 print:hidden">
               <RooftopMap
                 cityCoordinates={activeDiscom.coords}
                 onAreaCalculated={(newArea) => setRoofArea(newArea)}
+                onShadingCalculated={(liveShading) => setShading(liveShading)}
               />
 
               {/* 12-Month Generation Seasonal Curve Chart */}
@@ -524,6 +551,48 @@ export default function SolarLandingPage() {
                   </button>
                 </div>
 
+                {/* Regional Solar Irradiance & Electricity Rate Card */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-3 bg-[#e8e4d8] rounded-xl border border-[#ded8c9]">
+                    <div className="flex items-center gap-1 text-[10px] font-bold text-[#78716c] uppercase">
+                      <Sun className="h-3 w-3 text-amber-600" /> Solar Irradiance
+                    </div>
+                    <div className="font-mono font-bold text-[#1c241f] text-sm mt-0.5">
+                      {activeDiscom.avgIrradiance} <span className="text-[10px] font-normal text-[#57534d]">kWh/m²/day</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-[#e8e4d8] rounded-xl border border-[#ded8c9]">
+                    <div className="flex items-center gap-1 text-[10px] font-bold text-[#78716c] uppercase">
+                      <Zap className="h-3 w-3 text-amber-700" /> Unit Rate (₹/kWh)
+                    </div>
+                    <div className="font-mono font-bold text-[#1c241f] text-sm mt-0.5">
+                      ₹{customTariff.toFixed(1)} <span className="text-[10px] font-normal text-[#57534d]">/ unit</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dynamic Tariff Adjustment Slider */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs font-semibold">
+                    <span className="text-[#57534d]">Custom Electricity Tariff (₹/unit)</span>
+                    <span className="font-mono text-[#1c241f] font-bold">₹{customTariff.toFixed(1)} / kWh</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="4.0"
+                    max="14.0"
+                    step="0.1"
+                    value={customTariff}
+                    onChange={(e) => setCustomTariff(Number(e.target.value))}
+                    className="w-full h-1.5 bg-[#dcd5c2] rounded-lg appearance-none cursor-pointer accent-[#1c241f] print:hidden"
+                  />
+                  <div className="flex justify-between text-[10px] text-[#78716c]">
+                    <span>₹4.0 (Subsidized)</span>
+                    <span>₹14.0 (Commercial High Slab)</span>
+                  </div>
+                </div>
+
                 {/* Module Technology Switcher */}
                 <div className="space-y-2">
                   <span className="text-xs font-semibold text-[#57534d]">PV Module Technology</span>
@@ -546,6 +615,31 @@ export default function SolarLandingPage() {
                   </div>
                 </div>
 
+                {/* Sanctioned Load Input */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs font-semibold">
+                    <span className="text-[#57534d]">DISCOM Sanctioned Load</span>
+                    <span className="font-mono text-[#1c241f] font-bold">{sanctionedLoadKw} kW</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="20"
+                    step="1"
+                    value={sanctionedLoadKw}
+                    onChange={(e) => setSanctionedLoadKw(Number(e.target.value))}
+                    className="w-full h-1.5 bg-[#dcd5c2] rounded-lg appearance-none cursor-pointer accent-[#1c241f] print:hidden"
+                  />
+                  {isOverSanctionedLoad && (
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2 text-[11px] text-amber-900 mt-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+                      <span>
+                        <b>DISCOM Warning:</b> System capacity ({systemCapacityKw} kW) exceeds sanctioned load ({sanctionedLoadKw} kW). Apply for load enhancement before grid interconnection.
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 {/* Slider 1 */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs font-semibold">
@@ -561,39 +655,24 @@ export default function SolarLandingPage() {
                     onChange={(e) => setRoofArea(Number(e.target.value))}
                     className="w-full h-1.5 bg-[#dcd5c2] rounded-lg appearance-none cursor-pointer accent-[#1c241f] print:hidden"
                   />
-                  <div className="flex justify-between text-[10px] text-[#78716c]">
-                    <span>20 m² (Villa)</span>
-                    <span>500 m² (Industrial)</span>
-                  </div>
                 </div>
 
-                {/* Slider 2 */}
+                {/* Slider 2: Dynamic Live Sun Shading */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-[#57534d]">Obstacle Shading</span>
-                    <span className="font-mono text-[#1c241f] font-bold">{shading}%</span>
+                    <span className="text-[#57534d]">Calculated Shading Loss (Live Sun Vector)</span>
+                    <span className="font-mono text-amber-800 font-bold">{shading}%</span>
                   </div>
                   <input
                     type="range"
                     min="0"
-                    max="35"
+                    max="50"
                     step="1"
                     value={shading}
                     onChange={(e) => setShading(Number(e.target.value))}
-                    className="w-full h-1.5 bg-[#dcd5c2] rounded-lg appearance-none cursor-pointer accent-[#1c241f] print:hidden"
+                    className="w-full h-1.5 bg-[#dcd5c2] rounded-lg appearance-none cursor-pointer accent-amber-700 print:hidden"
                   />
-                </div>
-
-                {/* Array Sizing Metrics */}
-                <div className="p-3 bg-[#e8e4d8] rounded-xl flex items-center justify-between text-xs">
-                  <div>
-                    <span className="text-[#78716c] block text-[10px]">Estimated Panel Array</span>
-                    <span className="font-bold text-[#1c241f]">{panelCount} Panels ({activeModule.ratingWatts}W each)</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[#78716c] block text-[10px]">Tech Badge</span>
-                    <span className="font-semibold text-amber-800 text-[11px]">{activeModule.badge}</span>
-                  </div>
+                  <span className="text-[10px] text-[#78716c] block">Auto-updated as you scrub the 3D Sun Path slider.</span>
                 </div>
               </div>
 
@@ -829,14 +908,14 @@ export default function SolarLandingPage() {
                   <span>AI Electricity Bill Scanner</span>
                 </div>
                 <h3 className="font-serif text-2xl font-bold text-[#1a211c] mt-1">
-                  DISCOM Tariff & Consumption OCR
+                  DISCOM Tariff & Sanctioned Load OCR
                 </h3>
                 <p className="text-xs text-[#57534d] mt-1">
-                  Upload an Indian electricity bill or click a sample preset to auto-detect monthly units.
+                  Upload an Indian electricity bill or click a sample preset to auto-detect monthly units and load limits.
                 </p>
               </div>
 
-              {/* Hidden HTML File Input for System File Browser */}
+              {/* Hidden HTML File Input */}
               <input
                 type="file"
                 ref={fileInputRef}
@@ -849,7 +928,7 @@ export default function SolarLandingPage() {
                 }}
               />
 
-              {/* Clickable & Drag-and-Drop Dropzone */}
+              {/* Dropzone */}
               <div
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => {
@@ -871,17 +950,17 @@ export default function SolarLandingPage() {
                 }`}
               >
                 <UploadCloud className={`h-8 w-8 ${isDragOver ? "text-amber-700" : "text-[#78716c]"}`} />
-                <div className="text-xs font-semibold text-[#1a211c]">
+                <div className="text-xs font-semibold text-[#1c1b18]">
                   {uploadedFileName ? (
                     <span className="text-emerald-700 font-bold">{uploadedFileName}</span>
                   ) : (
-                    "Click to browse or drag & drop DISCOM bill (PDF or JPG)"
+                    "Click to browse or drag & drop DISCOM bill"
                   )}
                 </div>
-                <div className="text-[11px] text-[#78716c]">Supported: BSES, UPPCL, BESCOM, MSEDCL, JVVNL</div>
+                <div className="text-[11px] text-[#78716c]">Extracts units consumed and sanctioned electrical load</div>
               </div>
 
-              {/* Sample Bill Buttons for Demo */}
+              {/* Quick Presets */}
               <div className="space-y-2">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#78716c]">
                   Quick Demonstration Presets:
@@ -889,25 +968,25 @@ export default function SolarLandingPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => handleSimulateScan(350, 2750, "Urban 2-BHK Domestic (BSES)")}
+                    onClick={() => handleSimulateScan(350, 2750, "Urban Home (BSES)", 3)}
                     className="p-3 text-left rounded-xl bg-[#ece8dd] hover:bg-[#ded8c9] transition border border-[#ded8c9]"
                   >
                     <div className="text-xs font-bold text-[#1a211c]">Urban Home (350 Units)</div>
-                    <div className="text-[10px] text-[#78716c]">Monthly Bill: ~₹2,750</div>
+                    <div className="text-[10px] text-[#78716c]">Load: 3 kW • Bill: ~₹2,750</div>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => handleSimulateScan(1400, 12800, "Commercial Complex (UPPCL)")}
+                    onClick={() => handleSimulateScan(1400, 12800, "Commercial Complex (UPPCL)", 15)}
                     className="p-3 text-left rounded-xl bg-[#ece8dd] hover:bg-[#ded8c9] transition border border-[#ded8c9]"
                   >
                     <div className="text-xs font-bold text-[#1a211c]">Commercial (1,400 Units)</div>
-                    <div className="text-[10px] text-[#78716c]">Monthly Bill: ~₹12,800</div>
+                    <div className="text-[10px] text-[#78716c]">Load: 15 kW • Bill: ~₹12.8k</div>
                   </button>
                 </div>
               </div>
 
-              {/* Scan in progress indicator */}
+              {/* Scanning status */}
               {isScanning && (
                 <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-3 text-xs text-amber-900 font-semibold">
                   <Loader2 className="h-4 w-4 animate-spin text-amber-700" />
@@ -915,12 +994,12 @@ export default function SolarLandingPage() {
                 </div>
               )}
 
-              {/* Scanned Result Card */}
+              {/* Scanned Result */}
               {scannedResult && !isScanning && (
                 <div className="p-4 rounded-2xl bg-white border border-[#e4decb] space-y-3">
                   <div className="flex justify-between items-center text-xs">
                     <span className="font-semibold text-emerald-800">Bill Recognized: {scannedResult.consumerType}</span>
-                    <span className="font-mono text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold">100% OCR Match</span>
+                    <span className="font-mono text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold">100% Match</span>
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 text-center pt-1">
@@ -929,8 +1008,8 @@ export default function SolarLandingPage() {
                       <div className="text-sm font-bold font-mono text-[#1c241f]">{scannedResult.monthlyUnits} kWh</div>
                     </div>
                     <div className="p-2 rounded-lg bg-[#f7f5f0]">
-                      <div className="text-[10px] text-[#78716c]">Monthly Bill</div>
-                      <div className="text-sm font-bold font-mono text-[#1c241f]">₹{scannedResult.monthlyBill.toLocaleString("en-IN")}</div>
+                      <div className="text-[10px] text-[#78716c]">Sanctioned Load</div>
+                      <div className="text-sm font-bold font-mono text-[#1c241f]">{scannedResult.detectedLoad} kW</div>
                     </div>
                     <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
                       <div className="text-[10px] text-amber-900">Recommended Size</div>
@@ -942,70 +1021,10 @@ export default function SolarLandingPage() {
                     onClick={applyScannedResult}
                     className="w-full py-2.5 rounded-xl bg-[#1c241f] hover:bg-[#2c372f] text-white text-xs font-bold transition shadow"
                   >
-                    Apply Recommended Rooftop Sizing
+                    Apply Bill Sizing & Sanctioned Load
                   </button>
                 </div>
               )}
-            </div>
-          </div>
-        )}
-
-        {/* Interactive Detail Modal */}
-        {activeModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200 print:hidden">
-            <div className="bg-[#f7f5f0] border border-[#ece8dd] rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-6 shadow-2xl relative">
-              <button
-                onClick={() => setActiveModal(null)}
-                className="absolute top-6 right-6 h-8 w-8 rounded-full bg-[#ece8dd] hover:bg-[#ded8c9] flex items-center justify-center text-[#1c241f] transition"
-              >
-                <X className="h-4 w-4" />
-              </button>
-
-              <div className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-[#78716c] px-2.5 py-0.5 rounded bg-[#e8e4d8]">
-                  {activeModal.tag}
-                </span>
-                <h3 className="font-serif text-2xl font-bold text-[#1a211c] mt-2">{activeModal.title}</h3>
-                <p className="text-xs text-[#57534d]">{activeModal.subtitle}</p>
-              </div>
-
-              <p className="text-xs text-[#6b665f] leading-relaxed">{activeModal.desc}</p>
-
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-[#1c241f]">Key Specifications</h4>
-                <div className="grid grid-cols-3 gap-2">
-                  {activeModal.specs.map((sp, i) => (
-                    <div key={i} className="p-2.5 rounded-xl bg-[#ece8dd] text-center">
-                      <div className="text-[10px] text-[#78716c]">{sp.label}</div>
-                      <div className="text-xs font-bold font-mono text-[#1c241f] mt-0.5">{sp.value}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-[#1c241f]">Core Highlights</h4>
-                <div className="space-y-1.5">
-                  {activeModal.highlights.map((h, i) => (
-                    <div key={i} className="flex items-start gap-2 text-xs text-[#57534d]">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                      <span>{h}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="pt-2 flex justify-end">
-                <button
-                  onClick={() => {
-                    setActiveModal(null);
-                    window.location.href = "#studio";
-                  }}
-                  className="px-6 py-2.5 rounded-full bg-[#1c241f] text-[#f7f5f0] text-xs font-semibold hover:bg-[#2c372f] transition"
-                >
-                  Test on Your Roof
-                </button>
-              </div>
             </div>
           </div>
         )}
@@ -1023,4 +1042,4 @@ export default function SolarLandingPage() {
       </div>
     </div>
   );
-}   
+}
