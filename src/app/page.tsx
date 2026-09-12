@@ -1,1044 +1,1049 @@
 "use client";
 
-import React, { useState, useMemo, useRef } from "react";
-import dynamic from "next/dynamic";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Sun,
-  Zap,
-  IndianRupee,
   ShieldCheck,
-  MapPin,
-  ArrowRight,
-  TrendingUp,
-  Leaf,
-  Layers,
-  ChevronRight,
-  CheckCircle2,
-  Maximize2,
-  X,
-  BarChart3,
-  Building,
+  Building2,
   Home,
-  Battery,
-  Award,
-  Calendar,
-  ChevronDown,
-  ChevronUp,
-  Printer,
-  FileText,
-  UploadCloud,
-  FileCheck2,
-  Loader2,
+  IndianRupee,
+  MapPin,
+  Search,
+  Utensils,
+  Pill,
   AlertTriangle,
-  Flame,
+  PhoneCall,
+  Activity,
+  Bed,
+  CheckCircle2,
+  Globe,
+  Radio,
+  Ticket,
+  Printer,
+  X,
+  QrCode,
+  Volume2,
+  VolumeX,
+  Cpu,
+  TrendingDown,
+  Navigation,
+  Layers,
+  Zap,
 } from "lucide-react";
 
-const RooftopMap = dynamic(() => import("./RooftopMap"), {
-  ssr: false,
-  loading: () => (
-    <div className="w-full h-[540px] rounded-3xl bg-[#1c241f] flex flex-col items-center justify-center text-xs font-mono text-[#d8c29d] gap-2 border border-white/10">
-      <span className="h-3 w-3 rounded-full bg-amber-400 animate-ping"></span>
-      Initializing High-Resolution Satellite GIS & Sun-Path Engine...
-    </div>
-  ),
-});
-
-interface SolutionDetail {
-  title: string;
-  subtitle: string;
-  tag: string;
-  desc: string;
-  highlights: string[];
-  specs: { label: string; value: string }[];
+interface BedAvailability {
+  generalAvailable: number;
+  generalTotal: number;
+  icuAvailable: number;
+  icuTotal: number;
+  lastUpdatedMinutesAgo: number;
 }
 
-interface DiscomInfo {
-  name: string;
-  defaultTariff: number;
-  avgIrradiance: number; // kWh/m2/day
-  coords: [number, number];
-  solarIrradianceFactor: number[];
-}
-
-interface ModuleType {
+interface Hospital {
   id: string;
   name: string;
-  ratingWatts: number;
-  efficiency: number;
-  bifacialGain: number;
-  badge: string;
+  districtOrTown: string;
+  state: string;
+  tier: string;
+  specialties: string[];
+  ayushmanEmpanelled: boolean;
+  bplQuota: boolean;
+  estCostRange: string;
+  baseCost: number;
+  contact: string;
+  liveBeds: BedAvailability;
 }
 
-const MODULE_OPTIONS: ModuleType[] = [
+interface Shelter {
+  id: string;
+  name: string;
+  hospitalNearby: string;
+  districtOrTown: string;
+  state: string;
+  type: "Dharamshala / Vishram Sadan" | "Gurudwara Sarai" | "Red Cross / NGO Home";
+  tariffPerNight: number;
+  hasPatientKitchen: boolean;
+  wheelchairAccessible: boolean;
+  distanceKm: number;
+  contact: string;
+  bedsAvailable: number;
+}
+
+interface ProcedureCost {
+  name: string;
+  pmjayRate: string;
+  privateCost: string;
+  code: string;
+}
+
+const APEX_NATIONAL_HOSPITALS: Hospital[] = [
   {
-    id: "poly",
-    name: "Standard Polycrystalline",
-    ratingWatts: 335,
-    efficiency: 17.5,
-    bifacialGain: 0,
-    badge: "Budget Tier",
+    id: "aiims-delhi",
+    name: "All India Institute of Medical Sciences (AIIMS)",
+    districtOrTown: "New Delhi (Ansari Nagar)",
+    state: "Delhi NCR",
+    tier: "Apex National (AIIMS)",
+    specialties: ["Oncology (Cancer)", "Cardiology", "Pediatric Surgery", "Orthopedics", "Nephrology"],
+    ayushmanEmpanelled: true,
+    bplQuota: true,
+    estCostRange: "Free to ₹1,000 (Govt Subsidized)",
+    baseCost: 0,
+    contact: "011-26588500",
+    liveBeds: { generalAvailable: 28, generalTotal: 2478, icuAvailable: 3, icuTotal: 240, lastUpdatedMinutesAgo: 4 },
   },
   {
-    id: "monoperc",
-    name: "Mono-PERC Half-Cut",
-    ratingWatts: 545,
-    efficiency: 21.5,
-    bifacialGain: 0,
-    badge: "Industry Standard",
+    id: "pgimer-chandigarh",
+    name: "Postgraduate Institute of Medical Education & Research (PGIMER)",
+    districtOrTown: "Chandigarh (Sector 12)",
+    state: "Punjab & Haryana",
+    tier: "Apex National (AIIMS)",
+    specialties: ["Cardiology", "Nephrology", "Neurology", "Pediatric Care"],
+    ayushmanEmpanelled: true,
+    bplQuota: true,
+    estCostRange: "Free under PM-JAY / Nominal OPD",
+    baseCost: 20,
+    contact: "0172-2746018",
+    liveBeds: { generalAvailable: 41, generalTotal: 1948, icuAvailable: 5, icuTotal: 180, lastUpdatedMinutesAgo: 8 },
   },
   {
-    id: "bifacial",
-    name: "TOPCon Dual-Glass Bifacial",
-    ratingWatts: 580,
-    efficiency: 22.8,
-    bifacialGain: 0.12,
-    badge: "Maximum Yield",
+    id: "bhu-ims-varanasi",
+    name: "Sir Sunderlal Hospital, IMS Banaras Hindu University (BHU)",
+    districtOrTown: "Varanasi (Purvanchal Gateway)",
+    state: "Uttar Pradesh",
+    tier: "State Medical College",
+    specialties: ["Cardiology", "Oncology (Cancer)", "General Surgery", "Orthopedics"],
+    ayushmanEmpanelled: true,
+    bplQuota: true,
+    estCostRange: "Free under PM-JAY / ₹50 OPD",
+    baseCost: 50,
+    contact: "0542-2307500",
+    liveBeds: { generalAvailable: 64, generalTotal: 1500, icuAvailable: 8, icuTotal: 110, lastUpdatedMinutesAgo: 12 },
+  },
+  {
+    id: "aiims-gorakhpur",
+    name: "AIIMS Gorakhpur (Serving Rural UP & Bihar Border)",
+    districtOrTown: "Gorakhpur (Kunraghat)",
+    state: "Uttar Pradesh",
+    tier: "Apex National (AIIMS)",
+    specialties: ["Pediatric Surgery", "Orthopedics", "Nephrology", "General Medicine"],
+    ayushmanEmpanelled: true,
+    bplQuota: true,
+    estCostRange: "Free / 100% Cashless PM-JAY",
+    baseCost: 0,
+    contact: "0551-2205501",
+    liveBeds: { generalAvailable: 52, generalTotal: 750, icuAvailable: 6, icuTotal: 60, lastUpdatedMinutesAgo: 6 },
+  },
+  {
+    id: "aiims-bhopal",
+    name: "AIIMS Bhopal (Saket Nagar)",
+    districtOrTown: "Bhopal (Central MP & Bundelkhand Link)",
+    state: "Madhya Pradesh",
+    tier: "Apex National (AIIMS)",
+    specialties: ["Oncology (Cancer)", "Cardiology", "Nephrology", "Trauma Care"],
+    ayushmanEmpanelled: true,
+    bplQuota: true,
+    estCostRange: "Free under PM-JAY / Govt Subsidized",
+    baseCost: 0,
+    contact: "0755-2672317",
+    liveBeds: { generalAvailable: 48, generalTotal: 960, icuAvailable: 7, icuTotal: 84, lastUpdatedMinutesAgo: 9 },
+  },
+  {
+    id: "aiims-patna",
+    name: "AIIMS Patna (Phulwari Sharif)",
+    districtOrTown: "Patna / Central Rural Bihar",
+    state: "Bihar",
+    tier: "Apex National (AIIMS)",
+    specialties: ["Oncology (Cancer)", "Cardiology", "Pediatric Surgery", "Nephrology"],
+    ayushmanEmpanelled: true,
+    bplQuota: true,
+    estCostRange: "Free / 100% PM-JAY Coverage",
+    baseCost: 0,
+    contact: "0612-2451006",
+    liveBeds: { generalAvailable: 34, generalTotal: 960, icuAvailable: 2, icuTotal: 90, lastUpdatedMinutesAgo: 15 },
   },
 ];
 
-const REGIONAL_DISCOMS: Record<string, DiscomInfo> = {
-  "Delhi NCR (BSES / TPDDL)": {
-    name: "BSES Rajdhani / Yamuna / TPDDL",
-    defaultTariff: 7.8,
-    avgIrradiance: 4.8,
-    coords: [28.6139, 77.209],
-    solarIrradianceFactor: [0.72, 0.85, 1.05, 1.15, 1.2, 1.05, 0.82, 0.78, 0.92, 1.0, 0.82, 0.65],
+const DEFAULT_SHELTERS: Shelter[] = [
+  {
+    id: "aiims-vishram",
+    name: "AIIMS Powergrid Vishram Sadan",
+    hospitalNearby: "AIIMS New Delhi",
+    districtOrTown: "New Delhi",
+    state: "Delhi NCR",
+    type: "Dharamshala / Vishram Sadan",
+    tariffPerNight: 50,
+    hasPatientKitchen: true,
+    wheelchairAccessible: true,
+    distanceKm: 0.3,
+    contact: "Ground Desk Counter 4",
+    bedsAvailable: 14,
   },
-  "Uttar Pradesh (UPPCL / PVVNL)": {
-    name: "Paschimanchal Vidyut Vitran Nigam",
-    defaultTariff: 7.5,
-    avgIrradiance: 4.7,
-    coords: [28.4744, 77.504],
-    solarIrradianceFactor: [0.7, 0.82, 1.02, 1.14, 1.18, 1.02, 0.8, 0.76, 0.9, 0.98, 0.8, 0.64],
+  {
+    id: "bhopal-vishram-sadan",
+    name: "Sudarshan Vishram Sadan (AIIMS Bhopal)",
+    hospitalNearby: "AIIMS Bhopal",
+    districtOrTown: "Bhopal",
+    state: "Madhya Pradesh",
+    type: "Dharamshala / Vishram Sadan",
+    tariffPerNight: 50,
+    hasPatientKitchen: true,
+    wheelchairAccessible: true,
+    distanceKm: 0.2,
+    contact: "Social Welfare Counter",
+    bedsAvailable: 18,
   },
-  "Karnataka (BESCOM)": {
-    name: "Bangalore Electricity Supply Co.",
-    defaultTariff: 8.2,
-    avgIrradiance: 5.3,
-    coords: [12.9716, 77.5946],
-    solarIrradianceFactor: [1.02, 1.12, 1.2, 1.15, 1.05, 0.78, 0.68, 0.72, 0.85, 0.95, 0.98, 1.0],
+  {
+    id: "marwari-sewa-varanasi",
+    name: "Marwari Sewa Sangh Vishram Sadan",
+    hospitalNearby: "Sir Sunderlal Hospital (BHU)",
+    districtOrTown: "Varanasi",
+    state: "Uttar Pradesh",
+    type: "Dharamshala / Vishram Sadan",
+    tariffPerNight: 40,
+    hasPatientKitchen: true,
+    wheelchairAccessible: true,
+    distanceKm: 0.9,
+    contact: "Lanka Gate Desk",
+    bedsAvailable: 19,
   },
-  "Maharashtra (MSEDCL / Adani)": {
-    name: "Maharashtra State Electricity / Adani",
-    defaultTariff: 9.8,
-    avgIrradiance: 5.2,
-    coords: [19.076, 72.8777],
-    solarIrradianceFactor: [0.95, 1.05, 1.18, 1.22, 1.15, 0.75, 0.58, 0.62, 0.8, 1.02, 1.0, 0.92],
-  },
-  "Rajasthan (JVVNL)": {
-    name: "Jaipur Vidyut Vitran Nigam",
-    defaultTariff: 7.6,
-    avgIrradiance: 5.8,
-    coords: [26.9124, 75.7873],
-    solarIrradianceFactor: [0.82, 0.92, 1.1, 1.22, 1.25, 1.12, 0.92, 0.88, 1.02, 1.08, 0.92, 0.78],
-  },
-  "Gujarat (DGVCL / Torrent)": {
-    name: "Gujarat Urja Vikas Nigam",
-    defaultTariff: 6.8,
-    avgIrradiance: 5.7,
-    coords: [23.0225, 72.5714],
-    solarIrradianceFactor: [0.88, 0.98, 1.15, 1.22, 1.24, 1.08, 0.85, 0.8, 0.95, 1.04, 0.94, 0.82],
-  },
-};
+];
 
-const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const STANDARD_PROCEDURES: ProcedureCost[] = [
+  { name: "Cataract Surgery with Foldable IOL", pmjayRate: "₹9,000 (Cashless)", privateCost: "₹28,000 - ₹45,000", code: "PMJAY-OPH-01" },
+  { name: "Institutional Normal Delivery & Care", pmjayRate: "₹9,000 (Cashless)", privateCost: "₹25,000 - ₹50,000", code: "PMJAY-OBS-04" },
+  { name: "Cesarean Section (C-Section)", pmjayRate: "₹14,000 (Cashless)", privateCost: "₹55,000 - ₹95,000", code: "PMJAY-OBS-09" },
+  { name: "Hemodialysis (Per Session)", pmjayRate: "₹1,500 (Cashless)", privateCost: "₹3,500 - ₹5,500", code: "PMJAY-NEP-02" },
+  { name: "Coronary Angioplasty (with Stent)", pmjayRate: "₹45,000 (Cashless)", privateCost: "₹1,40,000 - ₹2,20,000", code: "PMJAY-CAR-11" },
+  { name: "Total Knee Replacement (Unilateral)", pmjayRate: "₹85,000 (Cashless)", privateCost: "₹2,10,000 - ₹3,50,000", code: "PMJAY-ORT-18" },
+  { name: "Laparoscopic Cholecystectomy (Gallbladder)", pmjayRate: "₹18,000 (Cashless)", privateCost: "₹50,000 - ₹85,000", code: "PMJAY-SUR-08" },
+];
 
-export default function SolarLandingPage() {
-  const [roofArea, setRoofArea] = useState<number>(120);
-  const [selectedModuleId, setSelectedModuleId] = useState<string>("monoperc");
-  const [selectedRegion, setSelectedRegion] = useState<string>("Delhi NCR (BSES / TPDDL)");
-  const [customTariff, setCustomTariff] = useState<number>(7.8);
-  const [shading, setShading] = useState<number>(12);
-  const [sanctionedLoadKw, setSanctionedLoadKw] = useState<number>(5);
-  const [activeModal, setActiveModal] = useState<SolutionDetail | null>(null);
-  const [showFullTable, setShowFullTable] = useState<boolean>(false);
+export default function SolarAnalyzerPage() {
+  const [lang, setLang] = useState<"en" | "hi">("en");
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [stayDurationDays, setStayDurationDays] = useState<number>(7);
 
-  // File Upload & Scanner State
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
-  const [isScanning, setIsScanning] = useState<boolean>(false);
-  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
-  const [isDragOver, setIsDragOver] = useState<boolean>(false);
-  const [scannedResult, setScannedResult] = useState<{
-    consumerType: string;
-    monthlyUnits: number;
-    monthlyBill: number;
-    recommendedKw: number;
-    detectedLoad: number;
-  } | null>(null);
+  // Live Hardware Telemetry States
+  const [iotHeartRate, setIotHeartRate] = useState<number>(74);
+  const [iotSpO2, setIotSpO2] = useState<number>(98);
+  const [iotRoomTemp, setIotRoomTemp] = useState<number>(24.5);
+  const [sosTriggered, setSosTriggered] = useState<boolean>(false);
+  const [bedLabel, setBedLabel] = useState<string>("Bed #14 (Vishram Sadan)");
 
-  const activeDiscom = REGIONAL_DISCOMS[selectedRegion];
+  // Modals
+  const [activeBookingShelter, setActiveBookingShelter] = useState<Shelter | null>(null);
+  const [patientName, setPatientName] = useState<string>("Ramesh Kumar");
+  const [abhaNumber, setAbhaNumber] = useState<string>("ABHA-9821-4412-9011");
+  const [tokenGenerated, setTokenGenerated] = useState<string | null>(null);
+  const [showHardwareModal, setShowHardwareModal] = useState<boolean>(false);
 
-  // Update default tariff when region changes
-  const handleRegionChange = (newRegion: string) => {
-    setSelectedRegion(newRegion);
-    setCustomTariff(REGIONAL_DISCOMS[newRegion].defaultTariff);
-  };
+  // Audio Context Ref
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
 
-  // Engineering Computations with Solar Irradiance
-  const effectiveArea = roofArea * (1 - shading / 100);
-  const capacityPerSqM = 0.15 * (MODULE_OPTIONS.find((m) => m.id === selectedModuleId)!.efficiency / 20);
-  const systemCapacityKw = (effectiveArea * capacityPerSqM).toFixed(2);
-  const capacityNum = parseFloat(systemCapacityKw);
-  
-  const activeModule = MODULE_OPTIONS.find((m) => m.id === selectedModuleId) || MODULE_OPTIONS[1];
-  const panelCount = Math.round((capacityNum * 1000) / activeModule.ratingWatts);
-  const bifacialMultiplier = 1 + activeModule.bifacialGain;
+  const playEmergencyBuzzer = () => {
+    if (!soundEnabled) return;
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioCtx();
+      }
+      const ctx = audioContextRef.current;
+      if (ctx.state === "suspended") ctx.resume();
 
-  // Daily generation calculated from real peak solar irradiance (PSH)
-  const baseDailyGen = capacityNum * activeDiscom.avgIrradiance * 0.78 * bifacialMultiplier;
-  const annualGenKwh = Math.round(baseDailyGen * 365);
-  const annualSavingsRs = Math.round(annualGenKwh * customTariff);
-  const baseCost = capacityNum * 52000;
-  const subsidy = capacityNum <= 2 ? 30000 * capacityNum : 78000;
-  const netInvestment = Math.max(0, baseCost - subsidy);
-  const paybackYears = (netInvestment / Math.max(1, annualSavingsRs)).toFixed(1);
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
 
-  const isOverSanctionedLoad = capacityNum > sanctionedLoadKw;
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.35);
 
-  // 12-Month Generation Curve
-  const monthlyGeneration = useMemo(() => {
-    const daysInMonths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    return activeDiscom.solarIrradianceFactor.map((factor, i) => {
-      const units = Math.round(baseDailyGen * factor * daysInMonths[i]);
-      return { month: MONTH_NAMES[i], units };
-    });
-  }, [baseDailyGen, activeDiscom]);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
 
-  const maxMonthlyGen = Math.max(...monthlyGeneration.map((m) => m.units), 100);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
 
-  // 25-Year Lifecycle Cashflow Simulation
-  const lifecycleCashFlow = useMemo(() => {
-    let runningNet = -netInvestment;
-    const rows = [];
-    const tariffEscalation = 0.04;
-    const panelDegradation = activeModule.id === "bifacial" ? 0.005 : 0.007;
-    const inverterReplacementCost = Math.round(capacityNum * 12000);
-
-    for (let year = 1; year <= 25; year++) {
-      const yearGeneration = annualGenKwh * Math.pow(1 - panelDegradation, year - 1);
-      const yearTariff = customTariff * Math.pow(1 + tariffEscalation, year - 1);
-      const grossSavings = yearGeneration * yearTariff;
-      
-      const maintenance = year === 10 ? inverterReplacementCost : Math.round(capacityNum * 600);
-      const netAnnualBenefit = grossSavings - maintenance;
-      runningNet += netAnnualBenefit;
-
-      rows.push({
-        year,
-        generation: Math.round(yearGeneration),
-        effectiveTariff: yearTariff.toFixed(1),
-        annualSavings: Math.round(grossSavings),
-        maintenance,
-        cumulativeProfit: Math.round(runningNet),
-      });
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+    } catch {
+      // Audio limitations
     }
-    return rows;
-  }, [netInvestment, annualGenKwh, customTariff, capacityNum, activeModule.id]);
-
-  const lifetimeTotalSavings = lifecycleCashFlow[24]?.cumulativeProfit || 0;
-
-  // File Processing & Simulation Logic
-  const handleProcessFile = (file: File) => {
-    setUploadedFileName(file.name);
-    setIsScanning(true);
-    setScannedResult(null);
-
-    setTimeout(() => {
-      const randomUnits = Math.floor(Math.random() * (750 - 280 + 1)) + 280;
-      const bill = Math.round(randomUnits * customTariff);
-      const neededKw = Math.max(1, Math.round((randomUnits / (activeDiscom.avgIrradiance * 30)) * 10) / 10);
-      
-      setScannedResult({
-        consumerType: `${file.name.substring(0, 18)}... (Verified)`,
-        monthlyUnits: randomUnits,
-        monthlyBill: bill,
-        recommendedKw: neededKw,
-        detectedLoad: Math.max(3, Math.floor(neededKw)),
-      });
-      setIsScanning(false);
-    }, 1200);
   };
 
-  const handleSimulateScan = (units: number, billAmount: number, type: string, load: number) => {
-    setUploadedFileName(null);
-    setIsScanning(true);
-    setScannedResult(null);
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/telemetry");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.heartRate !== undefined) setIotHeartRate(data.heartRate);
+          if (data.spO2 !== undefined) setIotSpO2(data.spO2);
+          if (data.roomTemp !== undefined) setIotRoomTemp(data.roomTemp);
+          if (data.bedId) setBedLabel(data.bedId);
 
-    setTimeout(() => {
-      const neededKw = Math.max(1, Math.round((units / (activeDiscom.avgIrradiance * 30)) * 10) / 10);
-      setScannedResult({
-        consumerType: type,
-        monthlyUnits: units,
-        monthlyBill: billAmount,
-        recommendedKw: neededKw,
-        detectedLoad: load,
-      });
-      setIsScanning(false);
+          if (data.sosTriggered !== undefined) {
+            setSosTriggered(data.sosTriggered);
+            if (data.sosTriggered) playEmergencyBuzzer();
+          }
+        }
+      } catch {
+        // API offline
+      }
     }, 1000);
+
+    return () => clearInterval(interval);
+  }, [soundEnabled]);
+
+  // ALL-INDIA DYNAMIC RESOLVER
+  const { resolvedHospitals, resolvedShelters, resolvedLocation } = useMemo(() => {
+    const q = searchTerm.trim();
+    if (!q) {
+      return {
+        resolvedHospitals: APEX_NATIONAL_HOSPITALS,
+        resolvedShelters: DEFAULT_SHELTERS,
+        resolvedLocation: null,
+      };
+    }
+
+    const lowerQ = q.toLowerCase();
+
+    const matchedApex = APEX_NATIONAL_HOSPITALS.filter(
+      (h) =>
+        h.name.toLowerCase().includes(lowerQ) ||
+        h.districtOrTown.toLowerCase().includes(lowerQ) ||
+        h.state.toLowerCase().includes(lowerQ) ||
+        h.specialties.some((s) => s.toLowerCase().includes(lowerQ))
+    );
+
+    if (matchedApex.length > 0) {
+      return {
+        resolvedHospitals: matchedApex,
+        resolvedShelters: DEFAULT_SHELTERS,
+        resolvedLocation: q,
+      };
+    }
+
+    const placeTitle = q.charAt(0).toUpperCase() + q.slice(1);
+    
+    let detectedState = "District Referral Zone";
+    if (lowerQ.includes("kota") || lowerQ.includes("jaipur") || lowerQ.includes("jodhpur")) {
+      detectedState = "Rajasthan";
+    } else if (lowerQ.includes("chhatarpur") || lowerQ.includes("bhopal") || lowerQ.includes("indore")) {
+      detectedState = "Madhya Pradesh";
+    } else if (lowerQ.includes("varanasi") || lowerQ.includes("gorakhpur") || lowerQ.includes("sultanpur")) {
+      detectedState = "Uttar Pradesh";
+    } else if (lowerQ.includes("darbhanga") || lowerQ.includes("patna")) {
+      detectedState = "Bihar";
+    }
+
+    const generatedHospitals: Hospital[] = [
+      {
+        id: `dh-${lowerQ}`,
+        name: `District Referral Hospital (${placeTitle})`,
+        districtOrTown: `${placeTitle} Main Headquarters`,
+        state: detectedState,
+        tier: "District Hospital / Referral Center",
+        specialties: ["General Medicine", "Emergency & Trauma", "Maternal Health (Gynecology)", "Orthopedics", "Pediatrics"],
+        ayushmanEmpanelled: true,
+        bplQuota: true,
+        estCostRange: "Free under PM-JAY / ₹10 OPD Slip",
+        baseCost: 10,
+        contact: "108 / 102 (District Healthline)",
+        liveBeds: { generalAvailable: 42, generalTotal: 300, icuAvailable: 5, icuTotal: 24, lastUpdatedMinutesAgo: 2 },
+      },
+      {
+        id: `chc-${lowerQ}`,
+        name: `Community Health Centre (CHC), ${placeTitle} Rural Block`,
+        districtOrTown: `${placeTitle} Sub-Divisional Belt`,
+        state: detectedState,
+        tier: "Community Health Centre (CHC)",
+        specialties: ["General OPD", "Institutional Delivery", "Immunization", "First-Aid & Trauma"],
+        ayushmanEmpanelled: true,
+        bplQuota: true,
+        estCostRange: "100% Cashless (National Health Mission)",
+        baseCost: 0,
+        contact: "Block Medical Officer Desk",
+        liveBeds: { generalAvailable: 14, generalTotal: 50, icuAvailable: 1, icuTotal: 4, lastUpdatedMinutesAgo: 6 },
+      },
+      {
+        id: `phc-${lowerQ}`,
+        name: `Ayushman Arogya Mandir (Sub-District Unit), ${placeTitle}`,
+        districtOrTown: `${placeTitle} Gram Panchayat`,
+        state: detectedState,
+        tier: "Primary Health Centre (PHC)",
+        specialties: ["Primary Diagnostic Screening", "Generic Drug Dispensing", "Telemedicine Node"],
+        ayushmanEmpanelled: true,
+        bplQuota: true,
+        estCostRange: "Free under Ayushman Arogya Scheme",
+        baseCost: 0,
+        contact: "Community Health Officer (CHO)",
+        liveBeds: { generalAvailable: 4, generalTotal: 8, icuAvailable: 0, icuTotal: 0, lastUpdatedMinutesAgo: 9 },
+      },
+    ];
+
+    const generatedShelter: Shelter = {
+      id: `sarai-${lowerQ}`,
+      name: `District Red Cross Vishram Sadan (${placeTitle})`,
+      hospitalNearby: `District Referral Hospital (${placeTitle})`,
+      districtOrTown: placeTitle,
+      state: detectedState,
+      type: "Dharamshala / Vishram Sadan",
+      tariffPerNight: 30,
+      hasPatientKitchen: true,
+      wheelchairAccessible: true,
+      distanceKm: 0.4,
+      contact: "Red Cross District Secretary Office",
+      bedsAvailable: 18,
+    };
+
+    return {
+      resolvedHospitals: generatedHospitals,
+      resolvedShelters: [generatedShelter, ...DEFAULT_SHELTERS],
+      resolvedLocation: `${placeTitle} (${detectedState})`,
+    };
+  }, [searchTerm]);
+
+  const triggerSosSimulation = async () => {
+    playEmergencyBuzzer();
+    try {
+      await fetch("/api/telemetry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ heartRate: 124, spO2: 93, roomTemp: 25.2, sosTriggered: true }),
+      });
+    } catch {
+      setSosTriggered(true);
+    }
   };
 
-  const applyScannedResult = () => {
-    if (!scannedResult) return;
-    setSanctionedLoadKw(scannedResult.detectedLoad);
-    const estimatedAreaNeeded = Math.round(scannedResult.recommendedKw * 10 * (20 / activeModule.efficiency));
-    setRoofArea(Math.min(500, Math.max(20, estimatedAreaNeeded)));
-    setIsScannerOpen(false);
+  const clearSosAlert = async () => {
+    try {
+      await fetch("/api/telemetry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ heartRate: 74, spO2: 98, roomTemp: 24.5, sosTriggered: false }),
+      });
+    } catch {
+      setSosTriggered(false);
+    }
   };
 
-  const solutions: SolutionDetail[] = [
-    {
-      title: "Residential Solar Systems",
-      subtitle: "On-grid Rooftop Photovoltaic Systems",
-      tag: "Residential",
-      desc: "Grid-tied rooftop solar systems designed for urban homes and villas. Uses bi-directional net metering to export excess energy back to the DISCOM grid.",
-      highlights: [
-        "Direct DISCOM Net Metering Integration",
-        "Up to 80% reduction in monthly utility bills",
-        "25-year performance warranty with zero maintenance requirement",
-      ],
-      specs: [
-        { label: "Typical Capacity", value: "3 kW - 10 kW" },
-        { label: "Payback Period", value: "3.2 - 4.5 Years" },
-        { label: "Area Needed", value: "80 - 300 sq. ft." },
-      ],
-    },
-    {
-      title: "Commercial & Industrial Solar",
-      subtitle: "High-Yield Enterprise Captive Plants",
-      tag: "Enterprise",
-      desc: "Designed for commercial complexes, factories, and academic campuses to offset high-tier commercial electricity tariffs and fulfill corporate ESG goals.",
-      highlights: [
-        "Accelerated depreciation tax benefits (40% under Indian IT Act)",
-        "Peak-load shaving and power factor management",
-        "Real-time IoT string telemetry monitoring",
-      ],
-      specs: [
-        { label: "Typical Capacity", value: "25 kW - 500 kW+" },
-        { label: "Payback Period", value: "2.8 - 3.5 Years" },
-        { label: "Area Needed", value: "2,000+ sq. ft." },
-      ],
-    },
-    {
-      title: "Solar Battery Storage (Hybrid)",
-      subtitle: "Lithium Ferro Phosphate (LFP) Microgrids",
-      tag: "Resilience",
-      desc: "Hybrid inverter topologies with intelligent energy storage management for areas facing frequent load shedding or for achieving true off-grid independence.",
-      highlights: [
-        "Zero transfer-time UPS capability for essential appliances",
-        "LFP chemistry with 6,000+ lifecycle guarantees",
-        "Smart time-of-day (ToD) tariff arbitrage optimization",
-      ],
-      specs: [
-        { label: "Storage Range", value: "5 kWh - 40 kWh" },
-        { label: "Backup Runtime", value: "6 - 18 Hours" },
-        { label: "Battery Chemistry", value: "LiFePO4 Safe Tier-1" },
-      ],
-    },
-    {
-      title: "PM Surya Ghar Muft Bijli Yojana",
-      subtitle: "National Direct Benefit Transfer Subsidies",
-      tag: "Govt Scheme",
-      desc: "Official central government financial assistance providing direct bank transfer subsidies to speed up residential solar adoption across 1 Crore households.",
-      highlights: [
-        "Flat ₹30,000 subsidy for 1 kW systems",
-        "Flat ₹60,000 subsidy for 2 kW systems",
-        "Flat ₹78,000 maximum subsidy for 3 kW and higher systems",
-      ],
-      specs: [
-        { label: "Target Outlay", value: "₹75,021 Crores" },
-        { label: "Target Homes", value: "10 Million Units" },
-        { label: "Subsidy Route", value: "National Portal DBT" },
-      ],
-    },
-  ];
+  const handleGenerateToken = (shelter: Shelter) => {
+    const token = `SIH-${shelter.id.slice(0, 3).toUpperCase()}-${Math.floor(100000 + Math.random() * 900000)}`;
+    setTokenGenerated(token);
+  };
+
+  const sampleAvgTariff = resolvedShelters[0]?.tariffPerNight ?? 50;
+  const stayCost = sampleAvgTariff * stayDurationDays;
+  const commercialHotelCost = 1500 * stayDurationDays;
+  const genericMedsCost = 450;
+  const commercialMedsCost = 2800;
+  const totalOutPocket = stayCost + genericMedsCost;
+  const totalCommercial = commercialHotelCost + commercialMedsCost;
+  const netSaved = totalCommercial - totalOutPocket;
+  const percentSaved = Math.round((netSaved / totalCommercial) * 100);
 
   return (
-    <div className="min-h-screen bg-[#111413] text-[#1c1b18] antialiased selection:bg-[#202923] selection:text-[#f7f5f0] relative overflow-hidden">
-      {/* Background Ambience */}
-      <div 
-        className="fixed inset-0 pointer-events-none opacity-40 mix-blend-luminosity bg-cover bg-center filter brightness-[0.7] contrast-125 print:hidden"
-        style={{
-          backgroundImage: `url('https://images.unsplash.com/photo-1509391365360-2e959784a276?auto=format&fit=crop&q=80&w=2400')`,
-        }}
-      />
-      <div className="fixed inset-0 bg-gradient-to-b from-[#111413]/70 via-[#111413]/40 to-[#111413] pointer-events-none print:hidden" />
+    <div className="min-h-screen bg-[#090d0b] text-[#f4f1ea] antialiased selection:bg-emerald-800 selection:text-white pb-12">
+      <div className="fixed inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(16,185,129,0.15),rgba(255,255,255,0))] pointer-events-none" />
 
-      {/* Main Container */}
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-12 print:p-0 print:space-y-6">
+      <div className="relative z-10 max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6 sm:space-y-10">
         
-        {/* Navigation */}
-        <header className="flex items-center justify-between py-4 px-8 rounded-full bg-[#f4f1ea]/90 backdrop-blur-md shadow-2xl border border-[#e8e4d8] print:hidden">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-[#1c241f] text-[#f4f1ea] flex items-center justify-center shadow-md">
-              <Sun className="h-4 w-4 text-[#d8c29d]" />
+        {/* Top Header */}
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 sm:px-6 sm:py-4 rounded-2xl bg-[#131916]/90 border border-white/10 backdrop-blur-md shadow-2xl gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+              <Zap className="h-5 w-5" />
             </div>
-            <div className="flex items-center gap-2">
-              <span className="font-serif tracking-tight text-xl font-bold text-[#1a211c]">SolarScope</span>
-              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-[#1c241f]/10 text-[#1c241f] border border-[#1c241f]/20">
-                SIH 2026
-              </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-serif text-lg sm:text-xl font-bold tracking-tight text-white">
+                  SIH Solar Analyzer
+                </span>
+                <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  SIH 2026 Prototype
+                </span>
+              </div>
+              <p className="text-[10px] sm:text-[11px] text-white/50 truncate max-w-[240px] sm:max-w-none">
+                Smart Analysis & Bedside Telemetry Platform
+              </p>
             </div>
           </div>
 
-          <nav className="hidden md:flex items-center gap-8 text-xs uppercase tracking-widest font-semibold text-[#57534d]">
-            <a href="#studio" className="hover:text-[#1c241f] transition">Feasibility Studio</a>
-            <a href="#projections" className="hover:text-[#1c241f] transition">25-Yr Financials</a>
-            <a href="#solutions" className="hover:text-[#1c241f] transition">Solar Topologies</a>
-            <a href="#national-impact" className="hover:text-[#1c241f] transition">India's Impact</a>
-          </nav>
-
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 self-end sm:self-auto">
             <button
-              onClick={() => setIsScannerOpen(true)}
-              className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#ece8dd] hover:bg-[#ded8c9] text-[#1c241f] text-xs font-semibold tracking-wide transition border border-[#ded8c9]"
+              onClick={() => setShowHardwareModal(true)}
+              className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-white/80 transition"
             >
-              <FileCheck2 className="h-3.5 w-3.5 text-amber-700" /> Scan DISCOM Bill
+              <Cpu className="h-3.5 w-3.5 text-sky-400" /> Circuit Pinout
             </button>
             <button
-              onClick={() => window.print()}
-              className="px-5 py-2 rounded-full bg-[#1c241f] text-[#f7f5f0] text-xs font-semibold tracking-wide hover:bg-[#2c372f] transition shadow-md flex items-center gap-2"
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              title={soundEnabled ? "Mute Siren" : "Unmute Siren"}
+              className="p-1.5 sm:p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white transition"
             >
-              <Printer className="h-3.5 w-3.5" /> Export Audit
+              {soundEnabled ? <Volume2 className="h-4 w-4 text-emerald-400" /> : <VolumeX className="h-4 w-4 text-rose-400" />}
             </button>
+            <button
+              onClick={() => setLang(lang === "en" ? "hi" : "en")}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-semibold transition"
+            >
+              <Globe className="h-3.5 w-3.5 text-emerald-400" />
+              <span>{lang === "en" ? "हिंदी" : "English"}</span>
+            </button>
+            <a
+              href="#iot-hub"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] sm:text-xs font-bold transition shadow-lg shadow-emerald-900/40 shrink-0"
+            >
+              <Radio className="h-3.5 w-3.5 animate-pulse" /> IoT Hub
+            </a>
           </div>
         </header>
 
         {/* Hero Section */}
-        <section className="text-center py-16 sm:py-24 space-y-6 max-w-4xl mx-auto print:hidden">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#f4f1ea]/80 border border-[#e4dfd2] backdrop-blur-sm text-[11px] font-medium tracking-wide text-[#3f3d37]">
-            <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse"></span>
-            Smart India Hackathon • Real-Time Irradiance & DISCOM Tariff Engine
+        <section className="text-center py-4 sm:py-6 space-y-2.5 max-w-3xl mx-auto px-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-medium text-emerald-400">
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+            <span>SIH 2026 • Universal Geospatial Search & Telemetry Hub</span>
           </div>
 
-          <h1 className="font-serif text-5xl sm:text-7xl lg:text-8xl tracking-tight text-[#fbfaf6] font-normal leading-[1.05]">
-            Energy Saving <br />
-            <span className="italic font-light text-[#dfd7c5]">Renewable Solar</span>
+          <h1 className="font-serif text-3xl sm:text-5xl md:text-6xl text-white font-normal leading-tight">
+            SIH Solar Analyzer <br />
+            <span className="italic text-emerald-400 font-light block sm:inline mt-1 sm:mt-0">
+              Integrated Analytics & Smart Device Monitoring
+            </span>
           </h1>
 
-          <p className="text-sm sm:text-base text-[#cfcac0] max-w-2xl mx-auto font-light leading-relaxed">
-            AI-driven rooftop GIS feasibility models, 3D sun-path shadow trajectory, localized solar irradiance, and state-level DISCOM net-metering audits.
+          <p className="text-xs sm:text-sm text-white/70 max-w-2xl mx-auto font-light leading-relaxed">
+            Live pan-India infrastructure indexing, standardized government procedure comparisons, and low-cost IoT telemetry integration for real-time edge monitoring.
           </p>
+        </section>
 
-          <div className="pt-4 flex flex-wrap items-center justify-center gap-4">
-            <a
-              href="#studio"
-              className="px-8 py-3.5 rounded-full bg-[#f4f1ea] text-[#1c241f] text-sm font-semibold tracking-wide hover:bg-white transition shadow-xl flex items-center gap-2"
-            >
-              Launch Solar Studio <ArrowRight className="h-4 w-4" />
-            </a>
-            <button
-              onClick={() => setIsScannerOpen(true)}
-              className="px-6 py-3.5 rounded-full bg-[#1c241f]/80 hover:bg-[#1c241f] text-[#f7f5f0] border border-white/20 text-sm font-semibold tracking-wide transition flex items-center gap-2"
-            >
-              <FileCheck2 className="h-4 w-4 text-[#d8c29d]" /> Upload Electricity Bill
-            </button>
+        {/* Universal Search Bar */}
+        <div className="max-w-2xl mx-auto px-1 space-y-2">
+          <div className="relative">
+            <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-emerald-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Type ANY Indian district, town, or village (e.g. Kota, Chhatarpur, Darbhanga, Noida)..."
+              className="w-full bg-[#131916] text-white text-xs sm:text-sm pl-10 pr-12 py-3 rounded-xl sm:rounded-2xl border border-white/20 focus:border-emerald-500 outline-none shadow-2xl transition placeholder-white/40"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm("")}
+                className="absolute right-3.5 top-3 text-[11px] text-white/50 hover:text-white"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          {resolvedLocation && (
+            <div className="flex items-center gap-1.5 text-xs text-sky-400 px-2 font-mono">
+              <Navigation className="h-3.5 w-3.5" />
+              <span>Resolved Infrastructure for: <b>{resolvedLocation}</b></span>
+            </div>
+          )}
+        </div>
+
+        {/* Economic Ledger Bar */}
+        <section className="bg-gradient-to-r from-emerald-950/40 via-[#131916] to-sky-950/30 p-4 sm:p-5 rounded-2xl border border-emerald-500/20 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-2.5">
+            <div className="h-9 w-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+              <TrendingDown className="h-4 w-4" />
+            </div>
+            <div>
+              <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-emerald-400">
+                Economic Impact ({stayDurationDays}-Day Analysis)
+              </span>
+              <div className="text-xs sm:text-sm font-semibold text-white">
+                Public Infrastructure & Direct Subsidized Resource Metrics
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-6 text-xs border-t border-white/5 sm:border-t-0 pt-2 sm:pt-0">
+            <div>
+              <span className="text-white/40 block text-[9px] uppercase">Commercial Benchmark</span>
+              <span className="line-through text-white/60 font-mono text-xs">₹{totalCommercial.toLocaleString("en-IN")}</span>
+            </div>
+            <div>
+              <span className="text-emerald-400 block text-[9px] uppercase font-bold">Platform Direct Rate</span>
+              <span className="text-emerald-300 font-mono text-sm font-bold">₹{totalOutPocket.toLocaleString("en-IN")}</span>
+            </div>
+            <div className="bg-emerald-500/20 px-2.5 py-1 rounded-lg border border-emerald-500/30 shrink-0">
+              <span className="text-emerald-300 font-bold text-[11px]">₹{netSaved.toLocaleString("en-IN")} ({percentSaved}%) Saved</span>
+            </div>
           </div>
         </section>
 
-        {/* Print Only Header */}
-        <div className="hidden print:block border-b border-black pb-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="font-serif text-2xl font-bold text-black">SolarScope Rooftop Feasibility Audit</h1>
-              <p className="text-xs text-gray-600">Smart India Hackathon 2026 • High-Precision GIS Photovoltaic Assessment</p>
-            </div>
-            <div className="text-right text-xs">
-              <p className="font-semibold">Region: {selectedRegion} | Tariff: ₹{customTariff}/kWh</p>
-              <p className="text-gray-500">Peak Irradiance: {activeDiscom.avgIrradiance} kWh/m²/day | System: {systemCapacityKw} kWp</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Watermark Branding */}
-        <div className="text-center select-none pointer-events-none -my-8 sm:-my-14 opacity-25 print:hidden">
-          <span className="font-serif text-7xl sm:text-9xl lg:text-[14rem] font-bold text-[#f7f5f0] tracking-tighter">
-            SolarScope
-          </span>
-        </div>
-
-        {/* Interactive GIS Rooftop Feasibility Studio */}
-        <section id="studio" className="bg-[#f7f5f0] rounded-[2.5rem] p-6 sm:p-12 shadow-2xl border border-[#ece8dd] space-y-8 print:p-4 print:shadow-none print:border">
-          <div className="flex flex-col md:flex-row md:items-end justify-between border-b border-[#e2ddd0] pb-6 gap-4">
-            <div>
-              <span className="text-[11px] font-bold uppercase tracking-widest text-[#78716c]">Smart Feasibility Engine</span>
-              <h2 className="font-serif text-3xl sm:text-4xl text-[#1a211c] mt-1 font-semibold">
-                Simulate Your Rooftop Yield & Shadows
-              </h2>
-            </div>
-            
-            <div className="flex items-center gap-2 bg-[#ece8dd] p-1.5 rounded-xl border border-[#ded8c9] print:hidden">
-              <span className="text-xs font-semibold px-2 text-[#57534d]">DISCOM:</span>
-              <select
-                value={selectedRegion}
-                onChange={(e) => handleRegionChange(e.target.value)}
-                className="bg-white border-none text-xs font-semibold rounded-lg px-3 py-1.5 outline-none text-[#1c241f] shadow-sm cursor-pointer"
-              >
-                {Object.keys(REGIONAL_DISCOMS).map((reg) => (
-                  <option key={reg} value={reg}>
-                    {reg}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Studio Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            
-            {/* Live Leaflet Satellite Viewport with 3D Sun Path Orbit */}
-            <div className="lg:col-span-7 space-y-6 print:hidden">
-              <RooftopMap
-                cityCoordinates={activeDiscom.coords}
-                onAreaCalculated={(newArea) => setRoofArea(newArea)}
-                onShadingCalculated={(liveShading) => setShading(liveShading)}
-              />
-
-              {/* 12-Month Generation Seasonal Curve Chart */}
-              <div className="bg-[#1c241f] p-5 sm:p-6 rounded-2xl border border-white/10 text-[#f7f5f0] space-y-4 shadow-xl">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#d8c29d]">
-                    <BarChart3 className="h-4 w-4" /> 12-Month Seasonal Generation (kWh)
-                  </div>
-                  <span className="text-[11px] font-mono text-white/60">
-                    Annual Total: <b className="text-white">{annualGenKwh.toLocaleString("en-IN")} units</b>
-                  </span>
-                </div>
-
-                {/* Bar Graph Visual */}
-                <div className="h-32 flex items-end justify-between gap-1.5 pt-4 pb-1 border-b border-white/10">
-                  {monthlyGeneration.map((item, idx) => {
-                    const heightPercent = Math.max(12, Math.round((item.units / maxMonthlyGen) * 100));
-                    return (
-                      <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 group relative h-full justify-end">
-                        <div className="opacity-0 group-hover:opacity-100 transition absolute -top-7 bg-white text-slate-900 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow whitespace-nowrap pointer-events-none z-20">
-                          {item.units} kWh
-                        </div>
-                        <div
-                          style={{ height: `${heightPercent}%` }}
-                          className={`w-full rounded-t-sm transition-all duration-300 ${
-                            idx === 4 || idx === 3
-                              ? "bg-amber-400"
-                              : idx === 6 || idx === 7
-                              ? "bg-sky-500/70"
-                              : "bg-[#d8c29d]/80 group-hover:bg-[#d8c29d]"
-                          }`}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* X-Axis Month Labels */}
-                <div className="flex justify-between text-[10px] font-mono text-white/50 px-0.5">
-                  {monthlyGeneration.map((m, i) => (
-                    <span key={i} className="flex-1 text-center">{m.month}</span>
-                  ))}
-                </div>
+        {/* Results Columns */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+          
+          {/* Left Column: Hospital Matches */}
+          <div className="lg:col-span-7 space-y-3.5">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-1.5">
+                <Building2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                <h3 className="font-serif text-lg sm:text-xl font-semibold text-white">
+                  Matched Referral Centers
+                </h3>
               </div>
+              <span className="text-[11px] font-mono text-white/50">
+                {resolvedHospitals.length} Found
+              </span>
             </div>
 
-            {/* Controls */}
-            <div className="lg:col-span-5 space-y-6 print:col-span-12 print:w-full">
-              <div className="bg-[#f0ece1] p-6 rounded-2xl border border-[#e4decb] space-y-5">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-[#1c241f]">Audit Parameters</h3>
-                  <button
-                    onClick={() => setIsScannerOpen(true)}
-                    className="text-[10px] font-bold text-amber-800 hover:underline flex items-center gap-1"
-                  >
-                    <FileCheck2 className="h-3 w-3" /> Auto-set from Bill
-                  </button>
-                </div>
-
-                {/* Regional Solar Irradiance & Electricity Rate Card */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="p-3 bg-[#e8e4d8] rounded-xl border border-[#ded8c9]">
-                    <div className="flex items-center gap-1 text-[10px] font-bold text-[#78716c] uppercase">
-                      <Sun className="h-3 w-3 text-amber-600" /> Solar Irradiance
+            {resolvedHospitals.map((hosp) => (
+              <div
+                key={hosp.id}
+                className="p-4 sm:p-5 rounded-2xl bg-[#131916] border border-white/10 hover:border-emerald-500/50 transition shadow-xl space-y-3"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                        {hosp.tier}
+                      </span>
+                      {hosp.ayushmanEmpanelled && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          100% Cashless Scheme
+                        </span>
+                      )}
                     </div>
-                    <div className="font-mono font-bold text-[#1c241f] text-sm mt-0.5">
-                      {activeDiscom.avgIrradiance} <span className="text-[10px] font-normal text-[#57534d]">kWh/m²/day</span>
-                    </div>
+                    <h4 className="font-serif text-base sm:text-lg font-bold text-white leading-snug">
+                      {hosp.name}
+                    </h4>
+                    <p className="text-[11px] text-white/60 flex items-center gap-1">
+                      <MapPin className="h-3 w-3 text-white/40 shrink-0" />
+                      <span>{hosp.districtOrTown} • <b>{hosp.state}</b></span>
+                    </p>
                   </div>
 
-                  <div className="p-3 bg-[#e8e4d8] rounded-xl border border-[#ded8c9]">
-                    <div className="flex items-center gap-1 text-[10px] font-bold text-[#78716c] uppercase">
-                      <Zap className="h-3 w-3 text-amber-700" /> Unit Rate (₹/kWh)
-                    </div>
-                    <div className="font-mono font-bold text-[#1c241f] text-sm mt-0.5">
-                      ₹{customTariff.toFixed(1)} <span className="text-[10px] font-normal text-[#57534d]">/ unit</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Dynamic Tariff Adjustment Slider */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-[#57534d]">Custom Electricity Tariff (₹/unit)</span>
-                    <span className="font-mono text-[#1c241f] font-bold">₹{customTariff.toFixed(1)} / kWh</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="4.0"
-                    max="14.0"
-                    step="0.1"
-                    value={customTariff}
-                    onChange={(e) => setCustomTariff(Number(e.target.value))}
-                    className="w-full h-1.5 bg-[#dcd5c2] rounded-lg appearance-none cursor-pointer accent-[#1c241f] print:hidden"
-                  />
-                  <div className="flex justify-between text-[10px] text-[#78716c]">
-                    <span>₹4.0 (Subsidized)</span>
-                    <span>₹14.0 (Commercial High Slab)</span>
+                  <div className="sm:text-right shrink-0 bg-white/5 sm:bg-transparent p-2 sm:p-0 rounded-xl">
+                    <span className="text-[9px] uppercase text-white/40 block">Service Cost</span>
+                    <span className="font-mono text-xs font-bold text-emerald-300">
+                      {hosp.estCostRange}
+                    </span>
                   </div>
                 </div>
 
-                {/* Module Technology Switcher */}
-                <div className="space-y-2">
-                  <span className="text-xs font-semibold text-[#57534d]">PV Module Technology</span>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {MODULE_OPTIONS.map((m) => (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => setSelectedModuleId(m.id)}
-                        className={`p-2 rounded-xl text-left border transition flex flex-col justify-between ${
-                          selectedModuleId === m.id
-                            ? "bg-[#1c241f] text-[#f7f5f0] border-[#1c241f] shadow"
-                            : "bg-white text-[#1c241f] border-[#ded8c9] hover:bg-[#eae6da]"
-                        }`}
-                      >
-                        <div className="text-[10px] font-bold truncate">{m.name.split(" ")[0]}</div>
-                        <div className="text-[9px] opacity-70 mt-1">{m.ratingWatts}W • {m.efficiency}%</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Sanctioned Load Input */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-[#57534d]">DISCOM Sanctioned Load</span>
-                    <span className="font-mono text-[#1c241f] font-bold">{sanctionedLoadKw} kW</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="1"
-                    max="20"
-                    step="1"
-                    value={sanctionedLoadKw}
-                    onChange={(e) => setSanctionedLoadKw(Number(e.target.value))}
-                    className="w-full h-1.5 bg-[#dcd5c2] rounded-lg appearance-none cursor-pointer accent-[#1c241f] print:hidden"
-                  />
-                  {isOverSanctionedLoad && (
-                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2 text-[11px] text-amber-900 mt-2">
-                      <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
-                      <span>
-                        <b>DISCOM Warning:</b> System capacity ({systemCapacityKw} kW) exceeds sanctioned load ({sanctionedLoadKw} kW). Apply for load enhancement before grid interconnection.
+                {/* Live Bed Telemetry Strip */}
+                <div className="p-2.5 rounded-xl bg-[#18201c] border border-white/5 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <Bed className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                    <div>
+                      <span className="text-[9px] text-white/40 block uppercase">General Capacity</span>
+                      <span className="font-mono font-bold text-white text-xs">
+                        {hosp.liveBeds.generalAvailable} / {hosp.liveBeds.generalTotal}
                       </span>
                     </div>
-                  )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <Activity className="h-3.5 w-3.5 text-rose-400 shrink-0" />
+                    <div>
+                      <span className="text-[9px] text-white/40 block uppercase">Critical ICU / HDU</span>
+                      <span className="font-mono font-bold text-rose-300 text-xs">
+                        {hosp.liveBeds.icuAvailable} / {hosp.liveBeds.icuTotal}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="col-span-2 sm:col-span-1 flex items-center justify-between sm:justify-end gap-1.5 border-t sm:border-t-0 border-white/5 pt-1.5 sm:pt-0">
+                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-mono">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Sync: {hosp.liveBeds.lastUpdatedMinutesAgo}m ago
+                    </span>
+                  </div>
                 </div>
 
-                {/* Slider 1 */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-[#57534d]">Rooftop Usable Area</span>
-                    <span className="font-mono text-[#1c241f] font-bold">{roofArea} m²</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="20"
-                    max="500"
-                    step="10"
-                    value={roofArea}
-                    onChange={(e) => setRoofArea(Number(e.target.value))}
-                    className="w-full h-1.5 bg-[#dcd5c2] rounded-lg appearance-none cursor-pointer accent-[#1c241f] print:hidden"
-                  />
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {hosp.specialties.map((spec, i) => (
+                    <span
+                      key={i}
+                      className="text-[9px] font-medium px-2 py-0.5 rounded bg-white/5 text-white/70 border border-white/10"
+                    >
+                      {spec}
+                    </span>
+                  ))}
                 </div>
 
-                {/* Slider 2: Dynamic Live Sun Shading */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-[#57534d]">Calculated Shading Loss (Live Sun Vector)</span>
-                    <span className="font-mono text-amber-800 font-bold">{shading}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="50"
-                    step="1"
-                    value={shading}
-                    onChange={(e) => setShading(Number(e.target.value))}
-                    className="w-full h-1.5 bg-[#dcd5c2] rounded-lg appearance-none cursor-pointer accent-amber-700 print:hidden"
-                  />
-                  <span className="text-[10px] text-[#78716c] block">Auto-updated as you scrub the 3D Sun Path slider.</span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-2 border-t border-white/5 text-[11px]">
+                  <span className="text-white/50 font-mono text-[10px] sm:text-[11px]">Contact: {hosp.contact}</span>
+                  <a
+                    href={`tel:${hosp.contact}`}
+                    className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold text-xs"
+                  >
+                    <PhoneCall className="h-3 w-3" /> Call Help Desk
+                  </a>
                 </div>
               </div>
+            ))}
+          </div>
 
-              {/* Financial Calculation Summary */}
-              <div className="p-6 rounded-2xl bg-[#1c241f] text-[#f7f5f0] space-y-4 shadow-xl print:text-black print:bg-white print:border print:border-gray-300">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs uppercase tracking-widest text-white/60 print:text-gray-600">Annual Savings</span>
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 print:text-emerald-800 font-medium">ROI ~24%</span>
-                </div>
-                <div className="font-serif text-4xl text-white font-bold print:text-black">
-                  ₹{annualSavingsRs.toLocaleString("en-IN")}
-                  <span className="text-xs font-sans font-normal text-white/50 print:text-gray-600 ml-1">/ year</span>
-                </div>
-                
-                <hr className="border-white/10 print:border-gray-300" />
-
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between text-white/70 print:text-gray-700">
-                    <span>System Capacity:</span>
-                    <span className="font-mono text-white font-bold print:text-black">{systemCapacityKw} kWp</span>
-                  </div>
-                  <div className="flex justify-between text-white/70 print:text-gray-700">
-                    <span>Gross Investment:</span>
-                    <span className="font-mono text-white font-bold print:text-black">₹{Math.round(baseCost).toLocaleString("en-IN")}</span>
-                  </div>
-                  <div className="flex justify-between text-emerald-400 print:text-emerald-800">
-                    <span>PM Surya Ghar Subsidy:</span>
-                    <span className="font-mono font-semibold">- ₹{subsidy.toLocaleString("en-IN")}</span>
-                  </div>
-                  <div className="flex justify-between text-white font-bold pt-1 border-t border-white/10 print:border-gray-300 print:text-black">
-                    <span>Net Out-of-Pocket:</span>
-                    <span className="font-mono text-[#d8c29d] print:text-black">₹{Math.round(netInvestment).toLocaleString("en-IN")}</span>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-between text-xs print:bg-gray-100 print:border-gray-300">
-                  <span className="text-white/70 print:text-gray-700">Estimated Payback:</span>
-                  <span className="font-bold font-mono text-[#d8c29d] print:text-black text-sm">{paybackYears} Years</span>
-                </div>
+          {/* Right Column: Subsidized Shelters */}
+          <div className="lg:col-span-5 space-y-3.5">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-1.5">
+                <Home className="h-4 w-4 text-sky-400 shrink-0" />
+                <h3 className="font-serif text-lg sm:text-xl font-semibold text-white">
+                  Transit Facilities & Stays
+                </h3>
               </div>
-
+              <span className="text-[11px] font-mono text-white/50">
+                {resolvedShelters.length} Available
+              </span>
             </div>
 
-          </div>
-        </section>
+            {resolvedShelters.map((shelter) => {
+              const totalStayCost = shelter.tariffPerNight * stayDurationDays;
+              return (
+                <div
+                  key={shelter.id}
+                  className="p-4 sm:p-5 rounded-2xl bg-[#131916] border border-white/10 hover:border-sky-500/50 transition shadow-xl space-y-2.5"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                    <div>
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-sky-400">
+                        {shelter.type}
+                      </span>
+                      <h4 className="font-serif text-sm sm:text-base font-bold text-white mt-0.5">
+                        {shelter.name}
+                      </h4>
+                      <p className="text-[11px] text-white/60">
+                        Near {shelter.hospitalNearby} ({shelter.distanceKm} km)
+                      </p>
+                    </div>
 
-        {/* 25-Year Cumulative Financial Cash-Flow Table */}
-        <section id="projections" className="bg-[#f7f5f0] rounded-[2.5rem] p-6 sm:p-12 shadow-2xl border border-[#ece8dd] space-y-6 print:p-4 print:shadow-none print:border">
-          <div className="flex flex-col md:flex-row md:items-end justify-between border-b border-[#e2ddd0] pb-6 gap-4">
-            <div>
-              <span className="text-[11px] font-bold uppercase tracking-widest text-[#78716c]">Lifecycle Economic Modeling</span>
-              <h2 className="font-serif text-3xl sm:text-4xl text-[#1a211c] mt-1 font-semibold">
-                25-Year Cash Flow Projection
-              </h2>
-              <p className="text-xs text-[#6b665f] mt-1">
-                Accounts for {activeModule.id === "bifacial" ? "0.5%" : "0.7%"}/year PV degradation, 4%/year DISCOM tariff inflation, and Year-10 inverter refurbishment.
+                    <div className="sm:text-right shrink-0 bg-white/5 sm:bg-transparent p-2 sm:p-0 rounded-xl flex sm:block justify-between items-center">
+                      <span className="text-xs font-mono font-bold text-sky-300">
+                        {shelter.tariffPerNight === 0 ? "FREE / Langar" : `₹${shelter.tariffPerNight}/night`}
+                      </span>
+                      <span className="text-[9px] text-white/40 font-mono block">
+                        {stayDurationDays}d Total: ₹{totalStayCost}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5 text-[9px] text-white/80">
+                    {shelter.hasPatientKitchen && (
+                      <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20">
+                        <Utensils className="h-2.5 w-2.5" /> Communal Kitchen
+                      </span>
+                    )}
+                    {shelter.wheelchairAccessible && (
+                      <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                        <CheckCircle2 className="h-2.5 w-2.5" /> Ramp Access
+                      </span>
+                    )}
+                    <span className="px-1.5 py-0.5 rounded bg-white/5 text-white/60 font-mono">
+                      {shelter.bedsAvailable} Units Vacant
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-[11px] text-white/50 pt-2 border-t border-white/5">
+                    <span className="truncate max-w-[140px]">{shelter.contact}</span>
+                    <button
+                      onClick={() => {
+                        setActiveBookingShelter(shelter);
+                        setTokenGenerated(null);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/30 text-xs font-bold transition shrink-0"
+                    >
+                      <Ticket className="h-3 w-3" /> Generate Pass
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            <div className="p-3.5 rounded-2xl bg-emerald-950/30 border border-emerald-600/30 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 uppercase">
+                <Pill className="h-3.5 w-3.5" /> Direct Subsidized Dispensary Grid
+              </div>
+              <p className="text-[11px] text-white/70 leading-relaxed">
+                Generic drug dispensaries available at every block and district center. Saves 50% to 90% below commercial retail pricing.
               </p>
             </div>
-            
-            <div className="p-4 rounded-2xl bg-[#1c241f] text-[#f7f5f0] text-right shrink-0 print:bg-white print:text-black print:border">
-              <div className="text-[10px] uppercase tracking-wider text-[#d8c29d] print:text-gray-600">25-Year Net Profit</div>
-              <div className="font-serif text-2xl font-bold text-white print:text-black">₹{lifetimeTotalSavings.toLocaleString("en-IN")}</div>
+          </div>
+        </div>
+
+        {/* Standard Procedure Cost Table */}
+        <section className="bg-[#131916] p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-white/10 shadow-2xl space-y-4">
+          <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+            <Layers className="h-4 w-4 text-emerald-400" />
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400 block">
+                Government Standard Pricing
+              </span>
+              <h3 className="font-serif text-lg font-bold text-white">
+                Standard Package Cost Comparison
+              </h3>
             </div>
           </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto rounded-2xl border border-[#e4decb] bg-white">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#f0ece1] text-[#1c241f] font-semibold uppercase tracking-wider border-b border-[#e4decb]">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-sans">
+              <thead className="bg-white/5 text-white/60 uppercase font-mono text-[10px]">
                 <tr>
-                  <th className="py-3 px-4">Year</th>
-                  <th className="py-3 px-4">Yield (kWh)</th>
-                  <th className="py-3 px-4">Grid Rate (₹/unit)</th>
-                  <th className="py-3 px-4">Annual Savings</th>
-                  <th className="py-3 px-4">O&M / Inverter</th>
-                  <th className="py-3 px-4 text-right">Cumulative Net Profit</th>
+                  <th className="p-3">Procedure / Service</th>
+                  <th className="p-3">Package Code</th>
+                  <th className="p-3 text-emerald-400">Government Standard Rate</th>
+                  <th className="p-3 text-rose-400">Commercial Market Benchmark</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#ece8dd] font-mono text-[#57534d]">
-                {(showFullTable ? lifecycleCashFlow : lifecycleCashFlow.slice(0, 5)).map((row) => (
-                  <tr key={row.year} className="hover:bg-[#fbfaf6] transition">
-                    <td className="py-3 px-4 font-bold text-[#1a211c]">Year {row.year}</td>
-                    <td className="py-3 px-4">{row.generation.toLocaleString("en-IN")}</td>
-                    <td className="py-3 px-4">₹{row.effectiveTariff}</td>
-                    <td className="py-3 px-4 text-emerald-700 font-semibold">+₹{row.annualSavings.toLocaleString("en-IN")}</td>
-                    <td className="py-3 px-4 text-[#78716c]">{row.maintenance > 1000 ? `₹${row.maintenance.toLocaleString("en-IN")} (Inverter Refit)` : `₹${row.maintenance}`}</td>
-                    <td className={`py-3 px-4 text-right font-bold ${row.cumulativeProfit >= 0 ? "text-emerald-700" : "text-amber-800"}`}>
-                      {row.cumulativeProfit >= 0 ? `+₹${row.cumulativeProfit.toLocaleString("en-IN")}` : `-₹${Math.abs(row.cumulativeProfit).toLocaleString("en-IN")}`}
-                    </td>
+              <tbody className="divide-y divide-white/5 bg-[#18201c]">
+                {STANDARD_PROCEDURES.map((p, i) => (
+                  <tr key={i} className="hover:bg-white/5 transition">
+                    <td className="p-3 font-medium text-white">{p.name}</td>
+                    <td className="p-3 font-mono text-white/50">{p.code}</td>
+                    <td className="p-3 font-mono font-bold text-emerald-400">{p.pmjayRate}</td>
+                    <td className="p-3 font-mono text-white/60 line-through">{p.privateCost}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-
-          <div className="text-center pt-2 print:hidden">
-            <button
-              onClick={() => setShowFullTable(!showFullTable)}
-              className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-full bg-[#1c241f] text-[#f7f5f0] text-xs font-semibold hover:bg-[#2c372f] transition shadow-md"
-            >
-              {showFullTable ? (
-                <>Show Less <ChevronUp className="h-3.5 w-3.5" /></>
-              ) : (
-                <>View Complete 25-Year Schedule <ChevronDown className="h-3.5 w-3.5" /></>
-              )}
-            </button>
-          </div>
         </section>
 
-        {/* 4 Solutions Grid with Interactive Modals */}
-        <section id="solutions" className="space-y-6 print:hidden">
-          <div className="text-center space-y-2">
-            <h2 className="font-serif text-4xl text-[#fbfaf6] font-normal">Solar Topologies & Schemes</h2>
-            <p className="text-xs text-[#b8b3a7]">Explore architectures and government subsidies aligned with national energy targets.</p>
+        {/* Live IoT Hardware Telemetry Hub */}
+        <section id="iot-hub" className="bg-[#131916] p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/10 shadow-2xl space-y-4 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-white/10 pb-3 sm:pb-4">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <Radio className="h-3.5 w-3.5 text-emerald-400 animate-pulse" />
+                <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-emerald-400">
+                  ESP32 Physical Hardware Integration (Live Poller Active)
+                </span>
+              </div>
+              <h2 className="font-serif text-xl sm:text-2xl font-bold text-white mt-0.5">
+                Bedside Recovery & Telemetry Hub
+              </h2>
+              <p className="text-[11px] text-white/60">Ultra low-cost ESP32 IoT node streaming real-time hardware telemetry.</p>
+            </div>
+
+            <div className="flex items-center gap-1.5 self-start sm:self-auto">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping"></span>
+              <span className="text-xs font-mono text-emerald-400 font-bold">{bedLabel}</span>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {solutions.map((sol, idx) => (
-              <div
-                key={idx}
-                className="bg-[#f7f5f0] p-6 rounded-2xl border border-[#ece8dd] flex flex-col justify-between h-64 hover:shadow-xl transition group"
-              >
+          {sosTriggered && (
+            <div className="p-3.5 rounded-xl bg-red-950/90 border border-red-500 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-bounce text-red-200">
+              <div className="flex items-center gap-2.5">
+                <AlertTriangle className="h-5 w-5 text-red-400 shrink-0" />
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716c] px-2 py-0.5 rounded bg-[#e8e4d8]">
-                    {sol.tag}
-                  </span>
-                  <h4 className="font-serif text-lg font-bold text-[#1a211c] mt-3 mb-2">{sol.title}</h4>
-                  <p className="text-xs text-[#6b665f] leading-relaxed font-light line-clamp-3">{sol.desc}</p>
+                  <div className="text-xs font-bold uppercase tracking-wider">
+                    CRITICAL EMERGENCY: ATTENDANT ALERT DISPATCHED
+                  </div>
+                  <div className="text-[11px]">Bedside Button pressed at unit ({bedLabel}). Audio sounding.</div>
                 </div>
+              </div>
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <span className="text-[10px] font-mono bg-red-900 px-2 py-0.5 rounded font-bold">Code Red</span>
                 <button
-                  onClick={() => setActiveModal(sol)}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#1c241f] group-hover:text-amber-800 transition cursor-pointer pt-3"
+                  onClick={clearSosAlert}
+                  className="text-xs bg-white/10 hover:bg-white/20 border border-white/20 px-2.5 py-1 rounded-lg text-white font-semibold transition"
                 >
-                  Explore Details <ChevronRight className="h-3.5 w-3.5" />
+                  Reset Alarm
                 </button>
               </div>
-            ))}
-          </div>
-        </section>
+            </div>
+          )}
 
-        {/* National Rooftop Solar Progress in India */}
-        <section id="national-impact" className="bg-[#f7f5f0] rounded-[2.5rem] p-8 sm:p-12 shadow-2xl border border-[#ece8dd] space-y-8 print:hidden">
-          <div className="border-b border-[#e2ddd0] pb-4">
-            <span className="text-[11px] font-bold uppercase tracking-widest text-[#78716c]">National Benchmark Data</span>
-            <h3 className="font-serif text-2xl sm:text-3xl text-[#1a211c] font-semibold mt-1">
-              India's Solar Rooftop Momentum
-            </h3>
-            <p className="text-xs text-[#6b665f]">
-              Cumulative installations and economic savings tracked across states under the Ministry of New and Renewable Energy (MNRE).
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
-            <div className="p-5 rounded-2xl bg-[#ece8dd]/50 border border-[#e2ddd0] space-y-1">
-              <div className="font-serif text-3xl sm:text-4xl font-bold text-[#1a211c] tracking-tight">14.8 GW+</div>
-              <div className="text-[11px] font-bold text-[#1c241f] uppercase tracking-wider">Cumulative Solar</div>
-              <p className="text-[11px] text-[#78716c] leading-relaxed pt-1">Installed capacity across residential and industrial sectors nationwide.</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            <div className="p-3.5 rounded-xl bg-[#18201c] border border-white/10 space-y-0.5">
+              <div className="text-[9px] uppercase font-bold text-white/50 flex items-center gap-1">
+                <Activity className="h-3 w-3 text-rose-500" /> Pulse (BPM)
+              </div>
+              <div className="font-mono text-2xl sm:text-3xl font-bold text-white">
+                {iotHeartRate} <span className="text-[10px] font-normal text-white/50">bpm</span>
+              </div>
+              <div className="text-[9px] text-emerald-400 font-medium">Live Telemetry</div>
             </div>
 
-            <div className="p-5 rounded-2xl bg-[#ece8dd]/50 border border-[#e2ddd0] space-y-1">
-              <div className="font-serif text-3xl sm:text-4xl font-bold text-[#1a211c] tracking-tight">₹18,200Cr+</div>
-              <div className="text-[11px] font-bold text-[#1c241f] uppercase tracking-wider">Annual Tariff Savings</div>
-              <p className="text-[11px] text-[#78716c] leading-relaxed pt-1">Direct reduction in consumer power bills via DISCOM net-metering.</p>
+            <div className="p-3.5 rounded-xl bg-[#18201c] border border-white/10 space-y-0.5">
+              <div className="text-[9px] uppercase font-bold text-white/50 flex items-center gap-1">
+                <Activity className="h-3 w-3 text-sky-400" /> Oxygen (SpO₂)
+              </div>
+              <div className="font-mono text-2xl sm:text-3xl font-bold text-white">{iotSpO2}%</div>
+              <div className="text-[9px] text-emerald-400 font-medium">Sensor Input</div>
             </div>
 
-            <div className="p-5 rounded-2xl bg-[#ece8dd]/50 border border-[#e2ddd0] space-y-1">
-              <div className="font-serif text-3xl sm:text-4xl font-bold text-[#1a211c] tracking-tight">18.5M+ T</div>
-              <div className="text-[11px] font-bold text-[#1c241f] uppercase tracking-wider">Annual CO₂ Abated</div>
-              <p className="text-[11px] text-[#78716c] leading-relaxed pt-1">Contribution towards India's Net-Zero 2070 decarbonization pledge.</p>
+            <div className="p-3.5 rounded-xl bg-[#18201c] border border-white/10 space-y-0.5">
+              <div className="text-[9px] uppercase font-bold text-white/50 flex items-center gap-1">
+                <Bed className="h-3 w-3 text-sky-400" /> Ambient Temp
+              </div>
+              <div className="font-mono text-2xl sm:text-3xl font-bold text-white">{iotRoomTemp}&deg;C</div>
+              <div className="text-[9px] text-white/60 font-medium">Room Comfort</div>
             </div>
 
-            <div className="p-5 rounded-2xl bg-[#ece8dd]/50 border border-[#e2ddd0] space-y-1">
-              <div className="font-serif text-3xl sm:text-4xl font-bold text-[#1a211c] tracking-tight">10 Million</div>
-              <div className="text-[11px] font-bold text-[#1c241f] uppercase tracking-wider">Target Households</div>
-              <p className="text-[11px] text-[#78716c] leading-relaxed pt-1">Under PM Surya Ghar Muft Bijli Yojana with direct DBT assistance.</p>
-            </div>
-          </div>
-        </section>
-
-        {/* Benefits Section */}
-        <section id="benefits" className="bg-[#f7f5f0] rounded-[2.5rem] p-8 sm:p-14 shadow-2xl border border-[#ece8dd] print:hidden">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-            <div className="lg:col-span-5 space-y-4">
-              <h2 className="font-serif text-4xl sm:text-5xl text-[#1a211c] font-normal leading-tight">
-                Why Transition <br />
-                <span className="italic">To Rooftop Solar</span> <br />
-                Power?
-              </h2>
-            </div>
-            <div className="lg:col-span-7 flex items-center">
-              <p className="text-sm sm:text-base text-[#57534d] leading-relaxed font-light">
-                Solar Rooftop systems provide complete immunity against accelerating grid power tariffs while unlocking generous central capital subsidies.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12 pt-12 border-t border-[#e5dfd2]">
-            <div className="space-y-2">
-              <h4 className="font-serif text-lg font-bold text-[#1c241f]">Tariff Immunity</h4>
-              <p className="text-xs text-[#6b665f] leading-relaxed">
-                Protect household and factory operating budgets from scheduled annual DISCOM rate hikes.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <h4 className="font-serif text-lg font-bold text-[#1c241f]">Accelerated ROI</h4>
-              <p className="text-xs text-[#6b665f] leading-relaxed">
-                High solar irradiance in Indian states ensures full capital expenditure recovery within 3 to 4 years.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <h4 className="font-serif text-lg font-bold text-[#1c241f]">Central DBT Subsidies</h4>
-              <p className="text-xs text-[#6b665f] leading-relaxed">
-                Direct benefit transfers of up to ₹78,000 deposited straight to your bank account via the National Portal.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Modal: Interactive Electricity Bill Scanner */}
-        {isScannerOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
-            <div className="bg-[#f7f5f0] border border-[#ece8dd] rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-6 shadow-2xl relative text-[#1c1b18]">
+            <div className="p-3.5 rounded-xl bg-[#18201c] border border-white/10 flex flex-col justify-between col-span-2 sm:col-span-1">
+              <div className="text-[9px] uppercase font-bold text-white/50 mb-1">Hardware Trigger</div>
               <button
-                onClick={() => setIsScannerOpen(false)}
-                className="absolute top-6 right-6 h-8 w-8 rounded-full bg-[#ece8dd] hover:bg-[#ded8c9] flex items-center justify-center text-[#1c241f] transition"
+                onClick={sosTriggered ? clearSosAlert : triggerSosSimulation}
+                className={`w-full py-2 rounded-xl text-white text-xs font-bold transition shadow-lg flex items-center justify-center gap-1 ${
+                  sosTriggered
+                    ? "bg-slate-700 hover:bg-slate-600"
+                    : "bg-red-600 hover:bg-red-500 shadow-red-900/40"
+                }`}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {sosTriggered ? "Reset Alarm State" : "Trigger Bedside SOS"}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* Modal: Bed Pre-Booking */}
+        {activeBookingShelter && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm">
+            <div className="bg-[#131916] border border-white/20 rounded-2xl p-5 max-w-md w-full shadow-2xl relative space-y-4">
+              <button
+                onClick={() => setActiveBookingShelter(null)}
+                className="absolute right-3.5 top-3.5 text-white/50 hover:text-white p-1 rounded-lg bg-white/5"
               >
                 <X className="h-4 w-4" />
               </button>
 
-              <div>
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#78716c]">
-                  <FileCheck2 className="h-4 w-4 text-amber-700" />
-                  <span>AI Electricity Bill Scanner</span>
-                </div>
-                <h3 className="font-serif text-2xl font-bold text-[#1a211c] mt-1">
-                  DISCOM Tariff & Sanctioned Load OCR
-                </h3>
-                <p className="text-xs text-[#57534d] mt-1">
-                  Upload an Indian electricity bill or click a sample preset to auto-detect monthly units and load limits.
-                </p>
-              </div>
-
-              {/* Hidden HTML File Input */}
-              <input
-                type="file"
-                ref={fileInputRef}
-                accept="image/*,.pdf"
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    handleProcessFile(e.target.files[0]);
-                  }
-                }}
-              />
-
-              {/* Dropzone */}
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setIsDragOver(true);
-                }}
-                onDragLeave={() => setIsDragOver(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDragOver(false);
-                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                    handleProcessFile(e.dataTransfer.files[0]);
-                  }
-                }}
-                className={`p-6 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center space-y-2 cursor-pointer transition ${
-                  isDragOver
-                    ? "border-amber-600 bg-amber-50"
-                    : "border-[#ded8c9] bg-white/70 hover:bg-white hover:border-[#c5bea9]"
-                }`}
-              >
-                <UploadCloud className={`h-8 w-8 ${isDragOver ? "text-amber-700" : "text-[#78716c]"}`} />
-                <div className="text-xs font-semibold text-[#1c1b18]">
-                  {uploadedFileName ? (
-                    <span className="text-emerald-700 font-bold">{uploadedFileName}</span>
-                  ) : (
-                    "Click to browse or drag & drop DISCOM bill"
-                  )}
-                </div>
-                <div className="text-[11px] text-[#78716c]">Extracts units consumed and sanctioned electrical load</div>
-              </div>
-
-              {/* Quick Presets */}
-              <div className="space-y-2">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#78716c]">
-                  Quick Demonstration Presets:
+              <div className="flex items-center gap-1.5 text-emerald-400">
+                <Ticket className="h-4 w-4" />
+                <span className="text-[10px] font-bold uppercase tracking-widest">
+                  Facility Pass Generator
                 </span>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleSimulateScan(350, 2750, "Urban Home (BSES)", 3)}
-                    className="p-3 text-left rounded-xl bg-[#ece8dd] hover:bg-[#ded8c9] transition border border-[#ded8c9]"
-                  >
-                    <div className="text-xs font-bold text-[#1a211c]">Urban Home (350 Units)</div>
-                    <div className="text-[10px] text-[#78716c]">Load: 3 kW • Bill: ~₹2,750</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSimulateScan(1400, 12800, "Commercial Complex (UPPCL)", 15)}
-                    className="p-3 text-left rounded-xl bg-[#ece8dd] hover:bg-[#ded8c9] transition border border-[#ded8c9]"
-                  >
-                    <div className="text-xs font-bold text-[#1a211c]">Commercial (1,400 Units)</div>
-                    <div className="text-[10px] text-[#78716c]">Load: 15 kW • Bill: ~₹12.8k</div>
-                  </button>
-                </div>
               </div>
 
-              {/* Scanning status */}
-              {isScanning && (
-                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-3 text-xs text-amber-900 font-semibold">
-                  <Loader2 className="h-4 w-4 animate-spin text-amber-700" />
-                  <span>Parsing OCR units, tariff slabs, and sanctioned load...</span>
-                </div>
-              )}
-
-              {/* Scanned Result */}
-              {scannedResult && !isScanning && (
-                <div className="p-4 rounded-2xl bg-white border border-[#e4decb] space-y-3">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-semibold text-emerald-800">Bill Recognized: {scannedResult.consumerType}</span>
-                    <span className="font-mono text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold">100% Match</span>
+              {!tokenGenerated ? (
+                <div className="space-y-3.5">
+                  <div>
+                    <h3 className="text-base font-serif font-bold text-white">
+                      {activeBookingShelter.name}
+                    </h3>
+                    <p className="text-[11px] text-white/60">
+                      Near {activeBookingShelter.hospitalNearby} • {activeBookingShelter.tariffPerNight === 0 ? "Free Langar" : `₹${activeBookingShelter.tariffPerNight}/night`}
+                    </p>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 text-center pt-1">
-                    <div className="p-2 rounded-lg bg-[#f7f5f0]">
-                      <div className="text-[10px] text-[#78716c]">Monthly Units</div>
-                      <div className="text-sm font-bold font-mono text-[#1c241f]">{scannedResult.monthlyUnits} kWh</div>
+                  <div className="space-y-2.5">
+                    <div>
+                      <label className="text-[11px] text-white/60 block mb-1">Full Name</label>
+                      <input
+                        type="text"
+                        value={patientName}
+                        onChange={(e) => setPatientName(e.target.value)}
+                        className="w-full bg-[#18201c] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-emerald-500"
+                      />
                     </div>
-                    <div className="p-2 rounded-lg bg-[#f7f5f0]">
-                      <div className="text-[10px] text-[#78716c]">Sanctioned Load</div>
-                      <div className="text-sm font-bold font-mono text-[#1c241f]">{scannedResult.detectedLoad} kW</div>
-                    </div>
-                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                      <div className="text-[10px] text-amber-900">Recommended Size</div>
-                      <div className="text-sm font-bold font-mono text-amber-800">{scannedResult.recommendedKw} kWp</div>
+
+                    <div>
+                      <label className="text-[11px] text-white/60 block mb-1">Scheme Identification / Registration ID</label>
+                      <input
+                        type="text"
+                        value={abhaNumber}
+                        onChange={(e) => setAbhaNumber(e.target.value)}
+                        className="w-full bg-[#18201c] border border-white/10 rounded-xl px-3 py-2 text-xs text-white font-mono outline-none focus:border-emerald-500"
+                      />
                     </div>
                   </div>
 
                   <button
-                    onClick={applyScannedResult}
-                    className="w-full py-2.5 rounded-xl bg-[#1c241f] hover:bg-[#2c372f] text-white text-xs font-bold transition shadow"
+                    onClick={() => handleGenerateToken(activeBookingShelter)}
+                    className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center justify-center gap-1.5"
                   >
-                    Apply Bill Sizing & Sanctioned Load
+                    Generate Transit Token
                   </button>
+                </div>
+              ) : (
+                <div className="space-y-3.5 text-center">
+                  <div className="p-3.5 bg-[#18201c] border border-white/10 rounded-xl space-y-2 text-left">
+                    <div className="flex justify-between items-start border-b border-white/10 pb-2">
+                      <div>
+                        <span className="text-[9px] text-white/50 uppercase block">Transit Token ID</span>
+                        <span className="font-mono text-sm font-bold text-emerald-400">{tokenGenerated}</span>
+                      </div>
+                      <QrCode className="h-8 w-8 text-emerald-300" />
+                    </div>
+
+                    <div className="space-y-1 text-[11px]">
+                      <div className="flex justify-between">
+                        <span className="text-white/50">Applicant:</span>
+                        <span className="text-white font-semibold">{patientName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-white/50">Allocated Unit:</span>
+                        <span className="text-sky-300 font-mono font-bold">Dorm-B / Unit #07</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => window.print()}
+                      className="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition flex items-center justify-center gap-1"
+                    >
+                      <Printer className="h-3 w-3" /> Print
+                    </button>
+                    <button
+                      onClick={() => setActiveBookingShelter(null)}
+                      className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition"
+                    >
+                      Done
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* Footer */}
-        <footer className="pt-8 pb-12 border-t border-white/10 text-center text-xs text-[#a8a29e] flex flex-col sm:flex-row items-center justify-between gap-4 print:hidden">
-          <div className="flex items-center gap-2">
-            <Sun className="h-4 w-4 text-[#d8c29d]" />
-            <span className="font-serif font-bold text-white text-sm">SolarScope Engine</span>
-            <span>• Smart India Hackathon 2026</span>
-          </div>
-          <p className="text-[11px]">National GIS Rooftop Solar Feasibility & DBT Subsidy Analyzer.</p>
-        </footer>
+        {/* Modal: Hardware Schematics */}
+        {showHardwareModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm">
+            <div className="bg-[#131916] border border-white/20 rounded-2xl p-5 max-w-lg w-full shadow-2xl relative space-y-3">
+              <button
+                onClick={() => setShowHardwareModal(false)}
+                className="absolute right-3.5 top-3.5 text-white/50 hover:text-white p-1 rounded-lg bg-white/5"
+              >
+                <X className="h-4 w-4" />
+              </button>
 
+              <div className="flex items-center gap-1.5 text-sky-400">
+                <Cpu className="h-4 w-4" />
+                <span className="text-[10px] font-bold uppercase tracking-widest">
+                  ESP32 Bedside Recovery Hub Circuit Pinout
+                </span>
+              </div>
+
+              <div className="space-y-2 text-[11px] text-white/80 font-mono bg-[#18201c] p-3 rounded-xl border border-white/10">
+                <div className="text-emerald-400 font-bold">// ESP32-WROOM-32 (CP2102)</div>
+                <div>• GPIO 04 $\rightarrow$ Tactile SOS Button (Pull-Up)</div>
+                <div>• GPIO 18 $\rightarrow$ Active Piezo Buzzer</div>
+                <div>• GPIO 21 (SDA) / 22 (SCL) $\rightarrow$ MAX30102 + OLED</div>
+                <div>• VIN / GND $\rightarrow$ Regulated 5V Rail</div>
+              </div>
+
+              <button
+                onClick={() => setShowHardwareModal(false)}
+                className="w-full py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold"
+              >
+                Close Schematics
+              </button>
+            </div>
+          </div>
+        )}
+
+        <footer className="pt-6 border-t border-white/10 text-center text-[10px] sm:text-xs text-white/40 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <Zap className="h-3.5 w-3.5 text-emerald-400" />
+            <span className="font-serif font-bold text-white">SIH Solar Analyzer</span>
+            <span>• SIH 2026</span>
+          </div>
+          <p>Universal Pan-India Analytics & Bedside Recovery Network.</p>
+        </footer>
       </div>
     </div>
   );
