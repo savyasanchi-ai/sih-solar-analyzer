@@ -376,7 +376,7 @@ export default function SolarLandingPage() {
             <div className="flex items-center gap-2">
               <span className="font-serif tracking-tight text-xl font-bold text-[#1a211c]">SolarScope</span>
               <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-[#1c241f]/10 text-[#1c241f] border border-[#1c241f]/20">
-                SIH 2026
+                PM Surya Ghar Portal
               </span>
             </div>
           </div>
@@ -385,7 +385,7 @@ export default function SolarLandingPage() {
             <a href="#studio" className="hover:text-[#1c241f] transition">Feasibility Studio</a>
             <a href="#projections" className="hover:text-[#1c241f] transition">25-Yr Financials</a>
             <a href="#solutions" className="hover:text-[#1c241f] transition">Solar Topologies</a>
-            <a href="#national-impact" className="hover:text-[#1c241f] transition">India's Impact</a>
+            <a href="#national-impact" className="hover:text-[#1c241f] transition">India&apos;s Impact</a>
           </nav>
 
           <div className="flex items-center gap-3">
@@ -408,7 +408,7 @@ export default function SolarLandingPage() {
         <section className="text-center py-16 sm:py-24 space-y-6 max-w-4xl mx-auto print:hidden">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#f4f1ea]/80 border border-[#e4dfd2] backdrop-blur-sm text-[11px] font-medium tracking-wide text-[#3f3d37]">
             <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse"></span>
-            Smart India Hackathon • Real-Time Irradiance & DISCOM Tariff Engine
+            MNRE Approved • Real-Time Irradiance & DISCOM Tariff Engine
           </div>
 
           <h1 className="font-serif text-5xl sm:text-7xl lg:text-8xl tracking-tight text-[#fbfaf6] font-normal leading-[1.05]">
@@ -441,7 +441,7 @@ export default function SolarLandingPage() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="font-serif text-2xl font-bold text-black">SolarScope Rooftop Feasibility Audit</h1>
-              <p className="text-xs text-gray-600">Smart India Hackathon 2026 • High-Precision GIS Photovoltaic Assessment</p>
+              <p className="text-xs text-gray-600">High-Precision GIS Photovoltaic Assessment</p>
             </div>
             <div className="text-right text-xs">
               <p className="font-semibold">Region: {selectedRegion} | Tariff: ₹{customTariff}/kWh</p>
@@ -818,7 +818,7 @@ export default function SolarLandingPage() {
           <div className="border-b border-[#e2ddd0] pb-4">
             <span className="text-[11px] font-bold uppercase tracking-widest text-[#78716c]">National Benchmark Data</span>
             <h3 className="font-serif text-2xl sm:text-3xl text-[#1a211c] font-semibold mt-1">
-              India's Solar Rooftop Momentum
+              India&apos;s Solar Rooftop Momentum
             </h3>
             <p className="text-xs text-[#6b665f]">
               Cumulative installations and economic savings tracked across states under the Ministry of New and Renewable Energy (MNRE).
@@ -841,7 +841,7 @@ export default function SolarLandingPage() {
             <div className="p-5 rounded-2xl bg-[#ece8dd]/50 border border-[#e2ddd0] space-y-1">
               <div className="font-serif text-3xl sm:text-4xl font-bold text-[#1a211c] tracking-tight">18.5M+ T</div>
               <div className="text-[11px] font-bold text-[#1c241f] uppercase tracking-wider">Annual CO₂ Abated</div>
-              <p className="text-[11px] text-[#78716c] leading-relaxed pt-1">Contribution towards India's Net-Zero 2070 decarbonization pledge.</p>
+              <p className="text-[11px] text-[#78716c] leading-relaxed pt-1">Contribution towards India&apos;s Net-Zero 2070 decarbonization pledge.</p>
             </div>
 
             <div className="p-5 rounded-2xl bg-[#ece8dd]/50 border border-[#e2ddd0] space-y-1">
@@ -1034,9 +1034,9 @@ export default function SolarLandingPage() {
           <div className="flex items-center gap-2">
             <Sun className="h-4 w-4 text-[#d8c29d]" />
             <span className="font-serif font-bold text-white text-sm">SolarScope Engine</span>
-            <span>• Smart India Hackathon 2026</span>
+            <span>• Rooftop Feasibility Platform</span>
           </div>
-          <p className="text-[11px]">National GIS Rooftop Solar Feasibility & DBT Subsidy Analyzer.</p>
+          <p className="text-[11px]">High-Resolution Photovoltaic & DBT Subsidy Engine.</p>
         </footer>
 
       </div>
